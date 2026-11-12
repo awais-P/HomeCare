@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+
+# env / secrets — never commit (Supabase connection string lives here)
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Expo / React Native
+.expo/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+apps/mobile/android/
+apps/mobile/ios/
+*.jks
+*.keystore
+!debug.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# logs
+npm-debug.*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/

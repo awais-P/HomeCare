@@ -1,0 +1,21 @@
+{
+  "name": "homecare",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HomeCare - hyperlocal errands (Sauda Run) and at-home skilled workers (Ustaad) for Islamabad/Rawalpindi",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "mobile": "npm run start -w @homecare/mobile",
+    "android": "npm run android -w @homecare/mobile",
+    "api": "npm run start:dev -w @homecare/api",
+    "api:build": "npm run build -w @homecare/api",
+    "api:test": "npm run test -w @homecare/api",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
