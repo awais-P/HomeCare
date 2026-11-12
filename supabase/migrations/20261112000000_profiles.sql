@@ -80,7 +80,8 @@ set search_path = ''
 as $$
 begin
   insert into public.profiles (id, phone)
-  values (new.id, public.to_e164(new.phone));
+  values (new.id, public.to_e164(new.phone))
+  on conflict (id) do nothing;
   return new;
 end;
 $$;
@@ -112,3 +113,9 @@ create trigger on_auth_user_phone_changed
 -- Trigger functions are not meant to be called directly by clients.
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 revoke execute on function public.handle_user_phone_change() from public, anon, authenticated;
+
+-- Users who signed up before this migration get a profile too.
+insert into public.profiles (id, phone)
+select u.id, public.to_e164(u.phone)
+from auth.users u
+on conflict (id) do nothing;

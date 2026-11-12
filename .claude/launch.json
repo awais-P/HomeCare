@@ -4,7 +4,7 @@
     {
       "name": "mobile-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "@homecare/mobile", "--", "--port", "8081"],
+      "runtimeArgs": ["run", "web", "-w", "@homecare/mobile", "--", "--port", "8081", "--clear"],
       "port": 8081
     }
   ]

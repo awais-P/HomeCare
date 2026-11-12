@@ -2,20 +2,28 @@
 
 One person (the project owner) does steps 1–4 once. Everyone else only needs step 5.
 
-## 1. Run the database migration
+## 1. Set up the database (SQL Editor)
 
-Supabase dashboard → **SQL Editor** → New query → paste the whole file
-[`supabase/migrations/20261112000000_profiles.sql`](../supabase/migrations/20261112000000_profiles.sql) → **Run**.
+Use this file: [`supabase/SETUP_RUN_IN_SQL_EDITOR.sql`](../supabase/SETUP_RUN_IN_SQL_EDITOR.sql)
+
+1. Open the file in VS Code, press **Ctrl+A** then **Ctrl+C** to copy all of it.
+2. Supabase dashboard → your project → left sidebar **SQL Editor** → **+ New query**.
+3. Paste (**Ctrl+V**) and click **Run** (or **Ctrl+Enter**). If a "destructive operation" warning
+   appears, confirm it: the script only drops rules and triggers that it re-creates itself.
+4. The **Results** panel shows one row. Every column must be `true`:
+   `profiles_table`, `security_on`, `rules_ok`, `signup_trigger`, `users_without_profile_ok`.
+
+Running it again is safe: it changes nothing and keeps all data.
 
 It creates:
-- `public.profiles` — one row per user (phone, name, email, language), created automatically on signup.
+- `public.profiles`: one row per user (phone, name, email, language), created automatically on signup.
 - Row Level Security: a signed-in user can read and edit **only their own** row, and only
   `full_name`, `email` and `language`. Clients cannot insert, delete or change the phone number.
 
-Check: **Table Editor → profiles** exists and shows "RLS enabled".
+You can also see it under **Table Editor → profiles** (marked "RLS enabled").
 
-> Before changing the schema, run `npm run db:test` locally. It applies every migration to an in-memory
-> Postgres and checks the security rules (18 checks today).
+> For developers: `supabase/migrations/` holds the same schema as versioned migrations (for the
+> Supabase CLI later). Keep both in sync; `npm run db:test` checks both.
 
 ## 2. Turn on phone sign-in
 
