@@ -13,9 +13,14 @@
     "api": "npm run start:dev -w @homecare/api",
     "api:build": "npm run build -w @homecare/api",
     "api:test": "npm run test -w @homecare/api",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "db:test": "node supabase/tests/rls.test.mjs",
+    "typecheck": "npm run typecheck -w @homecare/mobile"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16"
   }
 }

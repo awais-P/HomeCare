@@ -6,10 +6,20 @@ Hyperlocal home-services app for Islamabad/Rawalpindi: order a nearby rider to f
 ```
 HomeCare/
 ├─ apps/
-│  ├─ mobile/   Customer app — Expo (React Native + TypeScript, expo-router)
-│  └─ api/      Backend — NestJS (TypeScript), Supabase Postgres + PostGIS
-└─ packages/    Shared code (types, utils) — coming later
+│  ├─ mobile/      Customer app — Expo (React Native + TypeScript, expo-router)
+│  └─ api/         Business-logic API — NestJS (used from M4: dispatch, pricing, orders)
+├─ supabase/
+│  ├─ migrations/  Database schema + Row Level Security (SQL)
+│  └─ tests/       Schema/RLS tests on an in-memory Postgres (npm run db:test)
+├─ docs/
+│  ├─ ROADMAP.md         What we build, in which order
+│  └─ SUPABASE_SETUP.md  Dashboard steps for phone sign-in
+└─ packages/       Shared code (types, utils) — coming later
 ```
+
+**Architecture:** the app talks to Supabase directly for sign-in (phone OTP), profile data, files and
+realtime, with Row Level Security protecting each user's data. NestJS handles logic that must be trusted
+(dispatch, pricing, order state) and verifies Supabase login tokens. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 This is an npm workspaces monorepo: run `npm install` once at the root, not inside each app.
 
@@ -37,28 +47,35 @@ cd HomeCare
 npm install
 ```
 
-### Backend (API)
-
-1. Copy `apps/api/.env.example` to `apps/api/.env` and fill in the Supabase connection string.
-   **Never commit `.env`.** Ask the team lead for the shared dev database credentials.
-2. Run the API in watch mode:
-
-```bash
-npm run api
-```
-
 ### Mobile app
 
-With a phone connected (`adb devices` should list it):
+1. Follow [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) (step 5 is all you need if the project is
+   already set up): copy `apps/mobile/.env.example` to `apps/mobile/.env` and fill in the Supabase URL
+   and publishable key. **Never commit `.env`.**
+2. With a phone connected (`adb devices` should list it), build and install the app. The first build
+   takes several minutes:
 
 ```bash
 npm run android
 ```
 
-To run only the JS dev server (e.g. if the app is already installed):
+After that, if the app is already installed, you only need the dev server:
 
 ```bash
 npm run mobile
+```
+
+Sign in with a Supabase **test number** (e.g. `0300 1234567` / code `123456`) — no SMS is sent.
+
+> The app uses native modules (SQLite storage, keyboard controller), so it runs as a development build
+> (`npm run android`), not in Expo Go.
+
+### Backend (API) — from M4
+
+Not needed for sign-in. Copy `apps/api/.env.example` to `apps/api/.env`, then:
+
+```bash
+npm run api
 ```
 
 ## Useful scripts (run from the repo root)
@@ -70,4 +87,6 @@ npm run mobile
 | `npm run api`       | Start the NestJS API in watch mode   |
 | `npm run api:build` | Compile the API                      |
 | `npm run api:test`  | Run API unit tests                   |
+| `npm run db:test`   | Test migrations + RLS on a local Postgres |
+| `npm run typecheck` | Type-check the mobile app            |
 | `npm run lint`      | Lint all workspaces                  |
