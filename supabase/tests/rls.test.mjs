@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01 + SETUP_02, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..03, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -41,6 +41,18 @@ async function freshDb() {
     create table auth.users (id uuid primary key default gen_random_uuid(), phone text);
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+    -- Minimal stand-in for Supabase Storage
+    create schema storage;
+    grant usage on schema storage to anon, authenticated;
+    create table storage.buckets (id text primary key, name text not null, public boolean default false,
+      file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets (id),
+      name text not null, owner uuid default auth.uid(), created_at timestamptz default now(), unique (bucket_id, name));
+    create function storage.foldername(name text) returns text[] language sql immutable as $$
+      select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
+    alter table storage.objects enable row level security;
+    grant select, insert, update, delete on storage.objects to authenticated;
+    grant select on storage.buckets to authenticated;
   `);
   return db;
 }
@@ -192,6 +204,124 @@ async function checkAddressesAndZones(db) {
   await db.exec(`reset role;`);
 }
 
+// ----------------------------------------------------------------------- M3: partners + admins
+async function checkPartners(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  const rider = await newUser('923020000001');
+  const ustaad = await newUser('923020000002');
+  const admin = await newUser('923020000003');
+  const stranger = await newUser('923020000004');
+  await db.query(`insert into admins (user_id) values ($1)`, [admin]);
+
+  const upload = (uid, file) =>
+    db.query(`insert into storage.objects (bucket_id, name) values ('partner-documents', $1)`, [`${uid}/${file}`]);
+
+  await asUser(rider, async () => {
+    ok((await db.query(`select is_admin() a`)).rows[0].a === false, 'partner is not an admin');
+    const p = (await db.query(`insert into partners (role) values ('rider') returning *`)).rows[0];
+    ok(p.id === rider && p.status === 'draft' && p.is_online === false, 'rider creates own draft application');
+    await expectErr(`update partners set status = 'approved' where id = $1`, 'partner cannot change own status', [rider]);
+    await expectErr(`update partners set is_online = true where id = $1`, 'partner cannot set online directly', [rider]);
+    await expectErr(`insert into partners (id, role) values ($1, 'rider')`, 'cannot create an application for someone else', [stranger]);
+    await expectErr(`update partners set cnic_number = '12345' where id = $1`, 'bad CNIC format rejected', [rider]);
+    await expectErr(`update partners set payout_account = '12345' where id = $1`, 'bad payout number rejected', [rider]);
+
+    const msg = await expectErr(`select submit_partner_application()`, 'incomplete application cannot be submitted');
+    ok(msg?.includes('application_incomplete'), 'error is application_incomplete');
+
+    await db.query(
+      `update partners set cnic_number = '61101-1234567-1', vehicle_type = 'motorcycle', vehicle_number = 'RIK-1234',
+              payout_method = 'jazzcash', payout_account = '03001234567' where id = $1`, [rider]);
+    await db.query(`update profiles set full_name = 'Rider One' where id = $1`, [rider]);
+    await upload(rider, 'cnic_front.jpg');
+    await upload(rider, 'cnic_back.jpg');
+    await expectErr(`insert into storage.objects (bucket_id, name) values ('partner-documents', $1)`,
+      "cannot upload into another partner's folder", [`${stranger}/selfie.jpg`]);
+    await expectErr(`insert into storage.objects (bucket_id, name) values ('partner-documents', $1)`,
+      'only cnic_front / cnic_back / selfie files allowed', [`${rider}/random.pdf`]);
+    const stillMissing = await expectErr(`select submit_partner_application()`, 'submit without selfie rejected');
+    ok(stillMissing !== null, 'missing selfie blocks submission');
+    await upload(rider, 'selfie.jpg');
+    const submitted = (await db.query(`select (submit_partner_application()).status s`)).rows[0].s;
+    ok(submitted === 'pending', 'complete application submitted -> pending');
+
+    const edit = await db.query(`update partners set vehicle_number = 'XYZ-1' where id = $1`, [rider]);
+    ok(edit.affectedRows === 0, 'pending application is locked for editing');
+    await expectErr(`insert into storage.objects (bucket_id, name) values ('partner-documents', $1)`,
+      'documents locked while pending', [`${rider}/cnic_front.png`]);
+    await expectErr(`select set_partner_online(true, 33.676, 73.015)`, 'pending partner cannot go online');
+    await expectErr(`select review_partner($1, 'approved')`, 'partner cannot approve themselves', [rider]);
+  });
+
+  await asUser(ustaad, async () => {
+    await db.query(`insert into partners (role, cnic_number, payout_method, payout_account)
+                    values ('ustaad', '61101-7654321-2', 'easypaisa', '03331234567')`);
+    await db.query(`update profiles set full_name = 'Ustaad Two' where id = $1`, [ustaad]);
+    for (const f of ['cnic_front.jpg', 'cnic_back.jpg', 'selfie.jpg']) await upload(ustaad, f);
+    const noTrades = await expectErr(`select submit_partner_application()`, 'ustaad without trades rejected');
+    ok(noTrades?.includes('application_incomplete'), 'missing trades reported');
+    await db.query(`update partners set trades = '{plumber,electrician}' where id = $1`, [ustaad]);
+    ok((await db.query(`select (submit_partner_application()).status s`)).rows[0].s === 'pending', 'ustaad with trades submitted');
+    ok((await db.query(`select * from partners`)).rows.length === 1, 'partner sees only own application');
+    ok((await db.query(`select * from storage.objects`)).rows.every((o) => o.name.startsWith(ustaad)), 'partner sees only own documents');
+  });
+
+  await asUser(stranger, async () => {
+    ok((await db.query(`select * from partners`)).rows.length === 0, 'customer cannot see partners');
+    ok((await db.query(`select * from storage.objects where bucket_id = 'partner-documents'`)).rows.length === 0,
+      'customer cannot see partner documents');
+  });
+
+  await asUser(admin, async () => {
+    ok((await db.query(`select is_admin() a`)).rows[0].a === true, 'admin is recognised');
+    const all = (await db.query(`select p.id, pr.full_name from partners p join profiles pr on pr.id = p.id order by pr.full_name`)).rows;
+    ok(all.length === 2 && all[0].full_name === 'Rider One', 'admin sees all partners with names');
+    ok((await db.query(`select * from storage.objects where bucket_id = 'partner-documents'`)).rows.length === 6,
+      'admin can read all partner documents');
+    const noReason = await expectErr(`select review_partner($1, 'rejected')`, 'reject without a reason refused', [ustaad]);
+    ok(noReason?.includes('reason_required'), 'error is reason_required');
+    const rejected = (await db.query(`select (review_partner($1, 'rejected', 'CNIC photo is blurry')).status s`, [ustaad])).rows[0].s;
+    ok(rejected === 'rejected', 'admin rejects with a reason');
+    ok((await db.query(`select (review_partner($1, 'approved')).status s`, [rider])).rows[0].s === 'approved', 'admin approves rider');
+    await expectErr(`select review_partner($1, 'approved')`, 'cannot approve a rejected application directly', [ustaad]);
+    await expectErr(`update partners set status = 'approved' where id = $1`, 'admin also changes status only through review_partner', [ustaad]);
+  });
+
+  await asUser(ustaad, async () => {
+    const reason = (await db.query(`select status, status_reason from partners where id = $1`, [ustaad])).rows[0];
+    ok(reason.status === 'rejected' && reason.status_reason === 'CNIC photo is blurry', 'ustaad sees rejection reason');
+    const fix = await db.query(`update partners set trades = '{plumber}' where id = $1`, [ustaad]);
+    ok(fix.affectedRows === 1, 'rejected application can be edited again');
+    await upload(ustaad, 'cnic_front.png');
+    ok((await db.query(`select (submit_partner_application()).status s`)).rows[0].s === 'pending', 'resubmitted after rejection');
+  });
+
+  await asUser(rider, async () => {
+    await expectErr(`select set_partner_online(true)`, 'going online needs a location');
+    const online = (await db.query(`select * from set_partner_online(true, 33.676, 73.015)`)).rows[0];
+    ok(online.is_online === true && online.last_latitude === 33.676 && online.last_location !== null, 'approved rider goes online with location');
+    await db.query(`select update_partner_location(33.680, 73.020)`);
+    ok((await db.query(`select last_latitude from partners where id = $1`, [rider])).rows[0].last_latitude === 33.68, 'location heartbeat saved');
+    await db.query(`select set_partner_online(false)`);
+    const hb = await expectErr(`select update_partner_location(33.681, 73.021)`, 'heartbeat after going offline refused');
+    ok(hb?.includes('partner_offline'), 'error is partner_offline');
+    await db.query(`select set_partner_online(true, 33.676, 73.015)`);
+  });
+
+  await asUser(admin, async () => {
+    const s = (await db.query(`select * from review_partner($1, 'suspended', 'Customer complaint')`, [rider])).rows[0];
+    ok(s.status === 'suspended' && s.is_online === false, 'suspending a partner takes them offline');
+  });
+  await asUser(rider, async () => {
+    await expectErr(`select set_partner_online(true, 33.676, 73.015)`, 'suspended partner cannot go online');
+  });
+
+  await db.exec(`set role anon;`);
+  await expectErr(`select * from partners`, 'anon cannot read partners');
+  await expectErr(`select submit_partner_application()`, 'anon cannot submit applications');
+  await db.exec(`reset role;`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -201,10 +331,11 @@ console.log('\n== A. supabase/migrations');
   }
   await checkProfiles(db);
   await checkAddressesAndZones(db);
+  await checkPartners(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01 + SETUP_02 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..03 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -221,6 +352,7 @@ console.log('\n== B. SETUP_01 + SETUP_02 (each run twice, with an earlier signup
   ok(earlyProfile?.phone === '+923450000000', 'user who signed up before setup got a profile');
   await checkProfiles(db);
   await checkAddressesAndZones(db);
+  await checkPartners(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

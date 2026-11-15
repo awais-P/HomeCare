@@ -41,7 +41,7 @@ gantt
 | P0 Foundation | done | Nov 2026 | Monorepo, Supabase, GitHub in place ✅ |
 | P1 Customer sign-in & profile | 1 | to 22 Nov 2026 | New number signs up on a real phone and stays signed in after restart |
 | P2 Addresses & service zones 🚧 | 2 | to 6 Dec 2026 | Customer saves an address by map pin; outside-zone address is refused |
-| P3 Partner app, verification, admin | 4 | to 3 Jan 2027 | A rider and an ustaad register, get approved in admin, and go online |
+| P3 Partner app, verification, admin 🚧 | 4 | to 3 Jan 2027 | A rider and an ustaad register, get approved in admin, and go online |
 | P4 Sauda Run MVP | 5 | to 7 Feb 2027 | 10 test errands completed end to end, cash settled |
 | P5 Ustaad MVP | 3 | to 28 Feb 2027 | 10 test jobs completed with quote → approve → done |
 | P6 Realtime & notifications | 2 | to 14 Mar 2027 | Status changes arrive as push within 5 s; live rider location on map |
@@ -130,15 +130,19 @@ paid geocoder later only touches `features/map/app-map.tsx` or `features/locatio
 
 **Done when:** a customer saves an address by map pin, sees it on Home, and an address outside the zone is refused with the waitlist option.
 
-### P3 Partner app, verification & admin ⬜ (4 weeks)
+### P3 Partner app, verification & admin 🚧 (4 weeks)
 **Goal:** riders and ustaads can register, get verified and go online. Without supply nothing else matters.
-- [ ] `apps/partner`: reuse the sign-in flow; choose Rider or Ustaad (+ trades)
-- [ ] CNIC front/back + selfie upload to a private storage bucket
-- [ ] Rider: vehicle type/number; payout number (JazzCash/Easypaisa) for later
-- [ ] Status: pending → approved / rejected, with reason
-- [ ] Online/offline toggle; location update every 15–30 s while online
-- [ ] `apps/admin` (web): partner list, document viewer, approve/reject, live map of online partners
-- [ ] Partner app works on low-end Android and weak data
+- [x] `packages/shared`: UI kit, theme, translations, Supabase client, sign-in screens, map, location shared by all apps
+- [x] `apps/partner`: reuses the sign-in flow; choose Rider or Ustaad (+ trades)
+- [x] CNIC front/back + selfie upload to a private storage bucket (own folder only; admins read all)
+- [x] Rider: vehicle type/number; payout number (JazzCash/Easypaisa) for later
+- [x] Status: draft → pending → approved / rejected (with reason) → suspended; enforced by database functions (tested)
+- [x] Online/offline toggle; location update every 20 s while online and the app is open
+- [x] `apps/admin` (web): applications queue, document viewer, approve/reject/suspend, live map of online partners
+- [ ] Run `SETUP_03` on Supabase, add the first admin, test both apps on real phones
+- [ ] Background location while the phone is locked (with dispatch in P4/P6)
+- [ ] Partner app on low-end Android and weak data (test on a cheap phone)
+- [ ] Host the admin panel (Vercel/Netlify free tier)
 
 **Done when:** a rider and an ustaad register on their phones, an admin approves them, and they appear on the admin live map when online.
 

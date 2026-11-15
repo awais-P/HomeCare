@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { useAuth } from '@/features/auth/auth-provider';
-import type { Address, AddressInsert, AddressUpdate } from '@/lib/database.types';
-import { readItem, writeItem } from '@/lib/storage';
+import { useAuth } from '@homecare/shared/auth';
+import type { Address, AddressInsert, AddressUpdate } from '@homecare/shared/lib';
+import { readItem, writeItem } from '@homecare/shared/lib';
 
 import * as api from './api';
 

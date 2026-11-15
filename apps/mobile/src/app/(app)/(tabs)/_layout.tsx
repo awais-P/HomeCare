@@ -3,8 +3,8 @@ import { Tabs } from 'expo-router/js-tabs';
 import type { ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useI18n } from '@/i18n/i18n-provider';
-import { useColors } from '@/theme';
+import { useI18n } from '@homecare/shared/i18n';
+import { useColors } from '@homecare/shared/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

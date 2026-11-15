@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "HomeCare Partner",
+    "slug": "homecare-partner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "homecare-partner",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "pk.homecare.partner"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B7A55",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "pk.homecare.partner"
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#208AEF",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      "expo-sqlite",
+      "expo-localization",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "HomeCare Partner shares your location while you are online so nearby jobs can be offered to you."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "HomeCare Partner uses the camera to photograph your CNIC and take a verification selfie.",
+          "photosPermission": "HomeCare Partner lets you choose CNIC photos from your gallery."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

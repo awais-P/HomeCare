@@ -10,6 +10,7 @@ Run these files **in order**, each in its own new query. Each is safe to run aga
 | --- | --- | --- | --- |
 | 1 | [`supabase/SETUP_01_PROFILES.sql`](../supabase/SETUP_01_PROFILES.sql) | Sign-in profiles (P1) | `profiles_table`, `security_on`, `rules_ok`, `signup_trigger`, `users_without_profile_ok` |
 | 2 | [`supabase/SETUP_02_ADDRESSES_AND_ZONES.sql`](../supabase/SETUP_02_ADDRESSES_AND_ZONES.sql) | PostGIS, service zones, saved addresses, waitlist (P2) | `postgis_on`, `zones_ok`, `addresses_ok`, `waitlist_ok`, `map_functions_ok` |
+| 3 | [`supabase/SETUP_03_PARTNERS.sql`](../supabase/SETUP_03_PARTNERS.sql) | Partners, private CNIC/selfie storage, admins, online status (P3) | `partners_table`, `partner_rules_ok`, `private_bucket_ok`, `document_rules_ok`, `actions_ok` |
 
 For each file:
 
@@ -25,6 +26,19 @@ What the security rules guarantee:
 - `service_zones`: apps can only read them; changes are made in the dashboard.
 
 You can see the tables under **Table Editor** (each marked "RLS enabled").
+
+### Make yourself an admin (for the admin panel)
+
+Sign in once with the app (so your account exists), then run in the SQL Editor — your number
+without `+` or spaces:
+
+```sql
+insert into public.admins (user_id)
+select id from auth.users where phone = '923001234567'
+on conflict do nothing;
+```
+
+To remove someone: `delete from public.admins where user_id = (select id from auth.users where phone = '923001234567');`
 
 ### Service zones (pilot areas)
 

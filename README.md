@@ -7,6 +7,8 @@ Hyperlocal home-services app for Islamabad/Rawalpindi: order a nearby rider to f
 HomeCare/
 ├─ apps/
 │  ├─ mobile/      Customer app — Expo (React Native + TypeScript, expo-router)
+│  ├─ partner/     Rider & ustaad app — Expo (apply, verify, go online)
+│  ├─ admin/       Admin panel — web (React + Vite): approvals, documents, live map
 │  └─ api/         Business-logic API — NestJS (used from M4: dispatch, pricing, orders)
 ├─ supabase/
 │  ├─ migrations/  Database schema + Row Level Security (SQL)
@@ -14,7 +16,9 @@ HomeCare/
 ├─ docs/
 │  ├─ PROJECT_PLAN.md    Scope, phases, timeline, decisions, risks
 │  └─ SUPABASE_SETUP.md  Dashboard steps for phone sign-in
-└─ packages/       Shared code (types, utils) — coming later
+└─ packages/
+   └─ shared/     Code used by the apps: UI kit, theme, English/Urdu text, Supabase client,
+                  sign-in screens, map and location
 ```
 
 **Architecture:** the app talks to Supabase directly for sign-in (phone OTP), profile data, files and
@@ -82,11 +86,15 @@ npm run api
 
 | Script              | What it does                         |
 | ------------------- | ------------------------------------ |
-| `npm run android`   | Build and launch the app on Android  |
+| `npm run android`   | Build and launch the customer app on Android |
+| `npm run partner:android` | Build and launch the partner app on Android |
+| `npm run partner`   | Start the partner app's dev server   |
+| `npm run admin`     | Start the admin panel at http://localhost:5173 |
+| `npm run admin:build` | Build the admin panel for hosting  |
 | `npm run mobile`    | Start the Expo/Metro dev server      |
 | `npm run api`       | Start the NestJS API in watch mode   |
 | `npm run api:build` | Compile the API                      |
 | `npm run api:test`  | Run API unit tests                   |
 | `npm run db:test`   | Test migrations + RLS on a local Postgres |
-| `npm run typecheck` | Type-check the mobile app            |
+| `npm run typecheck` | Type-check every app and package     |
 | `npm run lint`      | Lint all workspaces                  |

@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, EmptyState, Screen } from '@/components/ui';
-import { useI18n } from '@/i18n/i18n-provider';
-import { spacing } from '@/theme';
+import { AppText, EmptyState, Screen } from '@homecare/shared/ui';
+import { useI18n } from '@homecare/shared/i18n';
+import { spacing } from '@homecare/shared/theme';
 
 export default function OrdersScreen() {
   const { t } = useI18n();

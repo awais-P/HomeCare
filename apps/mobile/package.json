@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/ui": "~58.0.28",
     "@expo/vector-icons": "^15.0.2",
+    "@homecare/shared": "*",
     "@maplibre/maplibre-react-native": "^11.5.1",
     "@supabase/supabase-js": "^2.119.0",
     "expo": "~58.0.25",

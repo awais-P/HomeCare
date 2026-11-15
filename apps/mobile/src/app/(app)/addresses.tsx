@@ -2,14 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
-import { BackHeader } from '@/components/back-header';
-import { AppText, Badge, Button, EmptyState, IconButton, IconCircle, InlineMessage, Screen } from '@/components/ui';
+import { AppText, BackHeader, Badge, Button, EmptyState, IconButton, IconCircle, InlineMessage, Screen } from '@homecare/shared/ui';
 import { useAddresses } from '@/features/addresses/addresses-provider';
 import { addressErrorKey, addressSummary, addressTitle, LABEL_ICON } from '@/features/addresses/labels';
 import { setLocationDraft } from '@/features/addresses/location-draft';
-import { useI18n, useRowDirection } from '@/i18n/i18n-provider';
-import type { Address } from '@/lib/database.types';
-import { radius, spacing, useColors } from '@/theme';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import type { Address } from '@homecare/shared/lib';
+import { radius, spacing, useColors } from '@homecare/shared/theme';
 
 /**
  * Saved addresses. mode=select (from Home): tapping an address makes it the delivery address.

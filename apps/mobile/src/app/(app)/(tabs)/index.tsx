@@ -4,17 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Avatar, CollapsibleSheet, IconCircle } from '@/components/ui';
+import { AppText, Avatar, CollapsibleSheet, IconCircle } from '@homecare/shared/ui';
 import { useAddresses } from '@/features/addresses/addresses-provider';
 import { addressSummary, addressTitle, LABEL_ICON } from '@/features/addresses/labels';
 import { setLocationDraft } from '@/features/addresses/location-draft';
-import { useAuth } from '@/features/auth/auth-provider';
+import { useAuth } from '@homecare/shared/auth';
 import { ServiceTile } from '@/features/home/service-tile';
-import { getDeviceLocation } from '@/features/location/device-location';
-import { AppMap } from '@/features/map/app-map';
-import { DEFAULT_CENTER, type AppMapHandle } from '@/features/map/types';
-import { useI18n, useRowDirection } from '@/i18n/i18n-provider';
-import { radius, spacing, useColors } from '@/theme';
+import { getDeviceLocation } from '@homecare/shared/location';
+import { AppMap, type AppMapHandle, DEFAULT_CENTER } from '@homecare/shared/map';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import { radius, spacing, useColors } from '@homecare/shared/theme';
 
 export default function HomeScreen() {
   const { t } = useI18n();

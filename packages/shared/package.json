@@ -1,0 +1,43 @@
+{
+  "name": "@homecare/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Code shared by the HomeCare apps: UI kit, theme, translations, Supabase client, sign-in, map and location.",
+  "exports": {
+    "./auth": "./src/auth/index.ts",
+    "./db-types": "./src/lib/database.types.ts",
+    "./i18n": "./src/i18n/index.ts",
+    "./lib": "./src/lib/index.ts",
+    "./location": "./src/location/index.ts",
+    "./map": "./src/map/index.ts",
+    "./phone": "./src/auth/phone.ts",
+    "./theme": "./src/theme/index.ts",
+    "./ui": "./src/ui/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "@expo/vector-icons": "*",
+    "@maplibre/maplibre-react-native": "*",
+    "@supabase/supabase-js": "*",
+    "expo": "*",
+    "expo-haptics": "*",
+    "expo-localization": "*",
+    "expo-location": "*",
+    "expo-router": "*",
+    "expo-splash-screen": "*",
+    "expo-sqlite": "*",
+    "maplibre-gl": "*",
+    "react": "*",
+    "react-native": "*",
+    "react-native-keyboard-controller": "*",
+    "react-native-safe-area-context": "*"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
+    "typescript": "~6.0.3"
+  }
+}

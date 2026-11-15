@@ -1,9 +1,9 @@
 import type Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 
-import { errorMessageKey } from '@/features/auth/errors';
-import type { TranslationKey } from '@/i18n/strings';
-import type { Address, AddressLabel } from '@/lib/database.types';
+import { errorMessageKey } from '@homecare/shared/auth';
+import type { TranslationKey } from '@homecare/shared/i18n';
+import type { Address, AddressLabel } from '@homecare/shared/lib';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

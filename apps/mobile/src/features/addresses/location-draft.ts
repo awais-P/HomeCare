@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import type { Place } from '@/features/location/geocoding';
+import type { Place } from '@homecare/shared/location';
 
 /**
  * The location chosen on the map picker, handed to the address form.

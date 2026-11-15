@@ -4,18 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Button, IconButton, InlineMessage } from '@/components/ui';
+import { AppText, Button, IconButton, InlineMessage } from '@homecare/shared/ui';
 import { useAddresses } from '@/features/addresses/addresses-provider';
 import * as addressApi from '@/features/addresses/api';
 import { setLocationDraft } from '@/features/addresses/location-draft';
-import { getDeviceLocation } from '@/features/location/device-location';
-import { placeToAddressLine, reverseGeocode, searchPlaces, type Place } from '@/features/location/geocoding';
-import { AppMap } from '@/features/map/app-map';
-import { MapPin, PIN_HEIGHT } from '@/features/map/map-pin';
-import { DEFAULT_CENTER, type AppMapHandle, type LatLng } from '@/features/map/types';
-import { useI18n, useRowDirection } from '@/i18n/i18n-provider';
-import type { TranslationKey } from '@/i18n/strings';
-import { radius, spacing, typography, useColors } from '@/theme';
+import { getDeviceLocation, type Place, placeToAddressLine, reverseGeocode, searchPlaces } from '@homecare/shared/location';
+import { AppMap, type AppMapHandle, DEFAULT_CENTER, type LatLng, MapPin, PIN_HEIGHT } from '@homecare/shared/map';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import type { TranslationKey } from '@homecare/shared/i18n';
+import { radius, spacing, typography, useColors } from '@homecare/shared/theme';
 
 type Lookup =
   | { status: 'loading' }

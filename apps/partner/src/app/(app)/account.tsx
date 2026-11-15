@@ -1,0 +1,93 @@
+import Constants from 'expo-constants';
+import { router } from 'expo-router';
+import { Alert, StyleSheet, View } from 'react-native';
+
+import { formatE164ForDisplay, useAuth } from '@homecare/shared/auth';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import type { AppLanguage } from '@homecare/shared/lib';
+import { radius, spacing, useColors } from '@homecare/shared/theme';
+import { AppText, Avatar, BackHeader, Card, Divider, ListItem, Screen, SegmentedControl } from '@homecare/shared/ui';
+
+import { ROLE_KEY } from '@/features/partner/labels';
+import { usePartner } from '@/features/partner/partner-provider';
+
+export default function PartnerAccountScreen() {
+  const { t, language, setLanguage } = useI18n();
+  const { profile, updateProfile, signOut } = useAuth();
+  const { partner } = usePartner();
+  const colors = useColors();
+  const row = useRowDirection();
+
+  const changeLanguage = (next: AppLanguage) => {
+    setLanguage(next);
+    updateProfile({ language: next }).catch(() => {});
+  };
+
+  const confirmSignOut = () =>
+    Alert.alert(t('account.signOutConfirmTitle'), t('account.signOutConfirmBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('account.signOut'), style: 'destructive', onPress: () => void signOut() },
+    ]);
+
+  return (
+    <Screen header={<BackHeader title={t('account.title')} />}>
+      <View style={styles.content}>
+        <Card style={[styles.profileCard, { flexDirection: row }]}>
+          <Avatar name={profile?.full_name} />
+          <View style={styles.flex}>
+            <AppText variant="heading" numberOfLines={1}>
+              {profile?.full_name ?? ''}
+            </AppText>
+            {profile?.phone ? (
+              <AppText variant="caption" color="textMuted">
+                {'⁦' + formatE164ForDisplay(profile.phone) + '⁩'}
+              </AppText>
+            ) : null}
+            {partner ? (
+              <AppText variant="caption" color="primary">
+                {t(ROLE_KEY[partner.role])}
+              </AppText>
+            ) : null}
+          </View>
+        </Card>
+
+        <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <ListItem icon="person-outline" title={t('account.editProfile')} onPress={() => router.push('/edit-profile')} />
+          <Divider inset={spacing.lg} />
+          <ListItem icon="help-circle-outline" title={t('account.help')} value={t('common.comingSoon')} disabled />
+        </View>
+
+        <View style={styles.languageBlock}>
+          <AppText variant="label" color="textMuted">
+            {t('account.language')}
+          </AppText>
+          <SegmentedControl<AppLanguage>
+            accessibilityLabel={t('account.language')}
+            value={language}
+            onChange={changeLanguage}
+            options={[
+              { value: 'en', label: t('lang.en') },
+              { value: 'ur', label: t('lang.ur') },
+            ]}
+          />
+        </View>
+
+        <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <ListItem icon="log-out-outline" title={t('account.signOut')} destructive showChevron={false} onPress={confirmSignOut} />
+        </View>
+
+        <AppText variant="small" color="textSubtle" align="center">
+          {t('account.version', { version: Constants.expoConfig?.version ?? '—' })}
+        </AppText>
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  content: { gap: spacing.lg },
+  profileCard: { alignItems: 'center', gap: spacing.lg },
+  group: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
+  languageBlock: { gap: spacing.xs + 2 },
+});

@@ -3,27 +3,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { BackHeader } from '@/components/back-header';
-import {
-  AppText,
-  Button,
-  Card,
-  ChoiceChips,
-  InlineMessage,
-  PhoneInput,
-  Screen,
-  TextField,
-  ToggleRow,
-} from '@/components/ui';
+import { AppText, BackHeader, Button, Card, ChoiceChips, InlineMessage, PhoneInput, Screen, TextField, ToggleRow } from '@homecare/shared/ui';
 import { useAddresses } from '@/features/addresses/addresses-provider';
 import { ADDRESS_LABELS, addressErrorKey, LABEL_ICON, LABEL_KEY } from '@/features/addresses/labels';
 import { setLocationDraft, useLocationDraft } from '@/features/addresses/location-draft';
-import { isValidNationalNumber, PK_COUNTRY_CODE, toNationalDigits } from '@/features/auth/phone';
-import { placeToAddressLine } from '@/features/location/geocoding';
-import { useI18n, useRowDirection } from '@/i18n/i18n-provider';
-import type { TranslationKey } from '@/i18n/strings';
-import type { AddressLabel } from '@/lib/database.types';
-import { radius, spacing, useColors } from '@/theme';
+import { isValidNationalNumber, PK_COUNTRY_CODE, toNationalDigits } from '@homecare/shared/auth';
+import { placeToAddressLine } from '@homecare/shared/location';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import type { TranslationKey } from '@homecare/shared/i18n';
+import type { AddressLabel } from '@homecare/shared/lib';
+import { radius, spacing, useColors } from '@homecare/shared/theme';
 
 const trimOrNull = (value: string) => (value.trim() === '' ? null : value.trim());
 

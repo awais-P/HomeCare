@@ -2,11 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { LanguageToggle } from '@/components/language-toggle';
-import { AppText, BrandMark, Button, Chip, IconCircle, Screen } from '@/components/ui';
-import { useI18n, useRowDirection } from '@/i18n/i18n-provider';
-import type { TranslationKey } from '@/i18n/strings';
-import { spacing, useColors } from '@/theme';
+import { AppText, BrandMark, Button, Chip, IconCircle, LanguageToggle, Screen } from '@homecare/shared/ui';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import type { TranslationKey } from '@homecare/shared/i18n';
+import { spacing, useColors } from '@homecare/shared/theme';
 
 const TRUST_POINTS: TranslationKey[] = ['home.trust.verified', 'home.trust.prices', 'home.trust.cash'];
 

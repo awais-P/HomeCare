@@ -2,12 +2,11 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { Alert, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Card, Divider, ListItem, Screen, SegmentedControl } from '@/components/ui';
-import { useAuth } from '@/features/auth/auth-provider';
-import { formatE164ForDisplay } from '@/features/auth/phone';
-import { useI18n, useRowDirection } from '@/i18n/i18n-provider';
-import type { AppLanguage } from '@/lib/database.types';
-import { radius, spacing, useColors } from '@/theme';
+import { AppText, Avatar, Card, Divider, ListItem, Screen, SegmentedControl } from '@homecare/shared/ui';
+import { formatE164ForDisplay, useAuth } from '@homecare/shared/auth';
+import { useI18n, useRowDirection } from '@homecare/shared/i18n';
+import type { AppLanguage } from '@homecare/shared/lib';
+import { radius, spacing, useColors } from '@homecare/shared/theme';
 
 export default function AccountScreen() {
   const { t, language, setLanguage } = useI18n();

@@ -2,9 +2,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { AppText, Badge } from '@/components/ui';
-import { useRowDirection } from '@/i18n/i18n-provider';
-import { radius, spacing, useColors, type ColorToken } from '@/theme';
+import { AppText, Badge } from '@homecare/shared/ui';
+import { useRowDirection } from '@homecare/shared/i18n';
+import { radius, spacing, useColors, type ColorToken } from '@homecare/shared/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 

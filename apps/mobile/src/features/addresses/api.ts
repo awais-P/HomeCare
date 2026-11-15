@@ -1,6 +1,6 @@
-import type { LatLng } from '@/features/map/types';
-import type { Address, AddressInsert, AddressUpdate } from '@/lib/database.types';
-import { supabase } from '@/lib/supabase';
+import type { LatLng } from '@homecare/shared/map';
+import type { Address, AddressInsert, AddressUpdate } from '@homecare/shared/lib';
+import { supabase } from '@homecare/shared/lib';
 
 export type ServiceAreaCheck = { inside: true; zoneId: string; zoneName: string } | { inside: false };
 
