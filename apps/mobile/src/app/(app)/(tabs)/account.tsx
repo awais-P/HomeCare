@@ -54,7 +54,7 @@ export default function AccountScreen() {
         <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <ListItem icon="person-outline" title={t('account.editProfile')} onPress={() => router.push('/edit-profile')} />
           <Divider inset={spacing.lg} />
-          <ListItem icon="location-outline" title={t('account.addresses')} value={t('common.comingSoon')} disabled />
+          <ListItem icon="location-outline" title={t('account.addresses')} onPress={() => router.push('/addresses')} />
           <Divider inset={spacing.lg} />
           <ListItem icon="help-circle-outline" title={t('account.help')} value={t('common.comingSoon')} disabled />
         </View>

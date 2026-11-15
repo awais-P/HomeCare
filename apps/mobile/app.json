@@ -36,7 +36,14 @@
         }
       ],
       "expo-sqlite",
-      "expo-localization"
+      "expo-localization",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "HomeCare uses your location to put the pin on your door and show riders and ustaads where to come."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

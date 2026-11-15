@@ -24,6 +24,8 @@
 --  - Security (Row Level Security): each user can read and edit ONLY their own row, and only their
 --    name, email and language. Nobody can change their phone number or see other users from the app.
 --
+--  Run this FIRST, then SETUP_02_ADDRESSES_AND_ZONES.sql.
+--
 --  For developers: this mirrors supabase/migrations/20261112000000_profiles.sql and is covered by
 --  `npm run db:test`. Change both together.
 -- ============================================================================

@@ -1,26 +1,51 @@
-# Supabase setup (M1: phone sign-in)
+# Supabase setup
 
 One person (the project owner) does steps 1–4 once. Everyone else only needs step 5.
 
 ## 1. Set up the database (SQL Editor)
 
-Use this file: [`supabase/SETUP_RUN_IN_SQL_EDITOR.sql`](../supabase/SETUP_RUN_IN_SQL_EDITOR.sql)
+Run these files **in order**, each in its own new query. Each is safe to run again.
+
+| Order | File | Adds | Results row (all must be `true`) |
+| --- | --- | --- | --- |
+| 1 | [`supabase/SETUP_01_PROFILES.sql`](../supabase/SETUP_01_PROFILES.sql) | Sign-in profiles (P1) | `profiles_table`, `security_on`, `rules_ok`, `signup_trigger`, `users_without_profile_ok` |
+| 2 | [`supabase/SETUP_02_ADDRESSES_AND_ZONES.sql`](../supabase/SETUP_02_ADDRESSES_AND_ZONES.sql) | PostGIS, service zones, saved addresses, waitlist (P2) | `postgis_on`, `zones_ok`, `addresses_ok`, `waitlist_ok`, `map_functions_ok` |
+
+For each file:
 
 1. Open the file in VS Code, press **Ctrl+A** then **Ctrl+C** to copy all of it.
 2. Supabase dashboard → your project → left sidebar **SQL Editor** → **+ New query**.
 3. Paste (**Ctrl+V**) and click **Run** (or **Ctrl+Enter**). If a "destructive operation" warning
    appears, confirm it: the script only drops rules and triggers that it re-creates itself.
-4. The **Results** panel shows one row. Every column must be `true`:
-   `profiles_table`, `security_on`, `rules_ok`, `signup_trigger`, `users_without_profile_ok`.
+4. The **Results** panel shows one row. Every column must be `true` (table above).
 
-Running it again is safe: it changes nothing and keeps all data.
+What the security rules guarantee:
+- `profiles`: each user can read and edit **only their own** row (name, email, language), never the phone number.
+- `addresses`: each user sees and edits only their own; a saved address **must be inside a service zone**.
+- `service_zones`: apps can only read them; changes are made in the dashboard.
 
-It creates:
-- `public.profiles`: one row per user (phone, name, email, language), created automatically on signup.
-- Row Level Security: a signed-in user can read and edit **only their own** row, and only
-  `full_name`, `email` and `language`. Clients cannot insert, delete or change the phone number.
+You can see the tables under **Table Editor** (each marked "RLS enabled").
 
-You can also see it under **Table Editor → profiles** (marked "RLS enabled").
+### Service zones (pilot areas)
+
+`SETUP_02` seeds **approximate** circles (decision D1 in the project plan is still open):
+F-10/F-11, G-9/G-10/G-11, I-8, Satellite Town, Saddar, Bahria Town (Phase 1–8).
+The app shows them as a light green area on the map.
+
+Testing from a place outside these? Add a temporary zone around it (change the name, lat/lng and
+radius in metres), in the SQL Editor:
+
+```sql
+insert into public.service_zones (slug, name, city, area)
+values ('test-my-area', 'Test: my area', 'islamabad',
+  extensions.st_multi(extensions.st_buffer(
+    extensions.st_setsrid(extensions.st_makepoint(73.0479, 33.6844), 4326)::extensions.geography,
+    1500)::extensions.geometry)::extensions.geography)
+on conflict (slug) do nothing;
+```
+
+Note `st_makepoint` takes **longitude first**, then latitude. To switch a zone off:
+`update public.service_zones set is_active = false where slug = 'test-my-area';`
 
 > For developers: `supabase/migrations/` holds the same schema as versioned migrations (for the
 > Supabase CLI later). Keep both in sync; `npm run db:test` checks both.
@@ -82,5 +107,8 @@ Both values are public by design. **Never** put the database password or a `sb_s
 | "Phone sign-in is not available right now"       | Phone provider disabled (step 2)                               |
 | "We couldn't send the SMS"                       | Number is not a test number and no real SMS provider is set up |
 | "That code is wrong or has expired"              | Wrong code, or the test number is written with `+` / spaces    |
-| "Couldn't load your account" after signing in    | Migration not run (step 1), so there is no `profiles` row      |
+| "Couldn't load your account" after signing in    | `SETUP_01` not run (step 1), so there is no `profiles` row     |
 | "Too many attempts"                              | Wait 60 s; Supabase rate limit                                 |
+| "Couldn't load your addresses" / no green areas  | `SETUP_02` not run (step 1)                                    |
+| "Couldn't check this spot" on the map picker     | `SETUP_02` not run, or no internet                             |
+| "We're not in this area yet" for your own home   | Outside the pilot zones: add a test zone (step 1, zones)       |

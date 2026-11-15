@@ -1,6 +1,8 @@
 export { AppText, type AppTextProps } from './app-text';
 export { Button, type ButtonProps } from './button';
 export { Card, type CardProps } from './card';
+export { ChoiceChips, ToggleRow } from './choices';
+export { CollapsibleSheet, type CollapsibleSheetProps } from './collapsible-sheet';
 export {
   Avatar,
   Badge,

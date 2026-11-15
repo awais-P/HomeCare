@@ -21,6 +21,7 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.16"
+    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite-postgis": "^0.2.16"
   }
 }

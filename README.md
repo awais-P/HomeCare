@@ -12,14 +12,14 @@ HomeCare/
 │  ├─ migrations/  Database schema + Row Level Security (SQL)
 │  └─ tests/       Schema/RLS tests on an in-memory Postgres (npm run db:test)
 ├─ docs/
-│  ├─ ROADMAP.md         What we build, in which order
+│  ├─ PROJECT_PLAN.md    Scope, phases, timeline, decisions, risks
 │  └─ SUPABASE_SETUP.md  Dashboard steps for phone sign-in
 └─ packages/       Shared code (types, utils) — coming later
 ```
 
 **Architecture:** the app talks to Supabase directly for sign-in (phone OTP), profile data, files and
 realtime, with Row Level Security protecting each user's data. NestJS handles logic that must be trusted
-(dispatch, pricing, order state) and verifies Supabase login tokens. See [docs/ROADMAP.md](docs/ROADMAP.md).
+(dispatch, pricing, order state) and verifies Supabase login tokens. See [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
 
 This is an npm workspaces monorepo: run `npm install` once at the root, not inside each app.
 
