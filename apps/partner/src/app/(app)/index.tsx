@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -22,6 +21,7 @@ import {
 
 import { useOnlineStatus } from '@/features/partner/online';
 import { usePartner } from '@/features/partner/partner-provider';
+import { JobsPanel } from '@/features/partner/jobs-panel';
 import { ROLE_ICON, ROLE_KEY } from '@/features/partner/labels';
 
 /**
@@ -209,19 +209,11 @@ function Dashboard({ partner }: { partner: Partner }) {
         />
       </Card>
 
+      <JobsPanel partner={partner} online={online} />
+
       <View style={[styles.mapCard, { borderColor: colors.border }]}>
         <AppMap initialCenter={center} initialZoom={13} zones={zones} showUserLocation={online} />
       </View>
-
-      <Card style={[styles.jobs, { flexDirection: row }]}>
-        <Ionicons name="briefcase-outline" size={22} color={colors.textMuted} />
-        <View style={styles.flex}>
-          <AppText variant="bodyStrong">{t('partner.home.jobsTitle')}</AppText>
-          <AppText variant="caption" color="textMuted">
-            {t('partner.home.jobsBody')}
-          </AppText>
-        </View>
-      </Card>
     </View>
   );
 }
@@ -238,5 +230,4 @@ const styles = StyleSheet.create({
   onlineRow: { alignItems: 'center', gap: spacing.md },
   dot: { width: 14, height: 14, borderRadius: 7 },
   mapCard: { height: 220, borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1 },
-  jobs: { alignItems: 'center', gap: spacing.md },
 });

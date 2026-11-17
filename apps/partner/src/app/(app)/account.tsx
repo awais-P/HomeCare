@@ -73,6 +73,22 @@ export default function PartnerAccountScreen() {
         </View>
 
         <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <ListItem
+            icon="document-text-outline"
+            title={t('legal.terms')}
+            onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })}
+          />
+          <Divider inset={spacing.lg} />
+          <ListItem
+            icon="shield-checkmark-outline"
+            title={t('legal.privacy')}
+            onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })}
+          />
+          <Divider inset={spacing.lg} />
+          <ListItem icon="trash-outline" title={t('account.deleteAccount')} destructive onPress={() => router.push('/delete-account')} />
+        </View>
+
+        <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <ListItem icon="log-out-outline" title={t('account.signOut')} destructive showChevron={false} onPress={confirmSignOut} />
         </View>
 

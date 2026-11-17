@@ -255,7 +255,8 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             onPress={() => onChange(option.value)}
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            aria-checked={selected}
+            aria-selected={selected}
             style={[styles.segment, selected && { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
             <AppText variant="label" color={selected ? 'text' : 'textMuted'} align="center">
               {option.label}

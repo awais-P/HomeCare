@@ -43,6 +43,13 @@
         {
           "locationWhenInUsePermission": "HomeCare uses your location to put the pin on your door and show riders and ustaads where to come."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "HomeCare uses the camera to photograph your shopping list.",
+          "photosPermission": "HomeCare lets you attach photos of your shopping list from your gallery."
+        }
       ]
     ],
     "experiments": {

@@ -3,22 +3,26 @@ import { useEffect, useState } from 'react';
 
 import { LiveMap } from './live-map';
 import { Login } from './login';
+import { OrdersView } from './orders-view';
 import { PartnersView } from './partners-view';
+import { SettingsView } from './settings-view';
 import { isConfigured, supabase } from './supabase';
 
-type View = 'applications' | 'partners' | 'map';
+type View = 'orders' | 'applications' | 'partners' | 'map' | 'settings';
 
 const VIEWS: { id: View; label: string }[] = [
+  { id: 'orders', label: 'Orders' },
   { id: 'applications', label: 'Applications' },
   { id: 'partners', label: 'Partners' },
   { id: 'map', label: 'Live map' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [admin, setAdmin] = useState<'checking' | 'yes' | 'no'>('checking');
-  const [view, setView] = useState<View>('applications');
+  const [view, setView] = useState<View>('orders');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -92,6 +96,8 @@ export function App() {
           <PartnersView key="partners" title="All partners" statuses={['approved', 'suspended', 'rejected', 'pending', 'draft']} />
         ) : null}
         {view === 'map' ? <LiveMap /> : null}
+        {view === 'orders' ? <OrdersView /> : null}
+        {view === 'settings' ? <SettingsView /> : null}
       </main>
     </div>
   );

@@ -7,3 +7,6 @@ export { PhoneScreen } from './screens/phone-screen';
 export { ProfileSetupScreen } from './screens/profile-setup-screen';
 export { VerifyScreen } from './screens/verify-screen';
 export { AppProviders, ProfileErrorScreen, useHideSplashWhenReady, useNavigationTheme } from './app-shell';
+export { DeleteAccountScreen } from './screens/delete-account-screen';
+export { LegalScreen } from './screens/legal-screen';
+export { TermsNotice } from './terms-notice';

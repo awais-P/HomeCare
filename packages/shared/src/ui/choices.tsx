@@ -32,7 +32,8 @@ export function ChoiceChips<T extends string>({
             key={option.value}
             onPress={() => onChange(option.value)}
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            aria-checked={selected}
+            aria-selected={selected}
             style={({ pressed }) => [
               styles.chip,
               {
@@ -79,7 +80,7 @@ export function MultiChoiceChips<T extends string>({
               onChange(selected ? values.filter((v) => v !== option.value) : [...values, option.value])
             }
             accessibilityRole="checkbox"
-            accessibilityState={{ checked: selected }}
+            aria-checked={selected}
             style={({ pressed }) => [
               styles.chip,
               {
@@ -121,7 +122,7 @@ export function ToggleRow({
     <Pressable
       onPress={() => onValueChange(!value)}
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      aria-checked={value}
       accessibilityLabel={label}
       style={[styles.toggle, { flexDirection: row }]}>
       <View style={styles.flex}>

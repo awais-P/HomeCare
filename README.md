@@ -8,7 +8,8 @@ HomeCare/
 ├─ apps/
 │  ├─ mobile/      Customer app — Expo (React Native + TypeScript, expo-router)
 │  ├─ partner/     Rider & ustaad app — Expo (apply, verify, go online)
-│  ├─ admin/       Admin panel — web (React + Vite): approvals, documents, live map
+│  ├─ admin/       Admin panel — web (React + Vite): orders, approvals, documents, live map, settings
+│  ├─ site/        Public website — Terms, Privacy, account deletion (needed for Google Play)
 │  └─ api/         Business-logic API — NestJS (used from M4: dispatch, pricing, orders)
 ├─ supabase/
 │  ├─ migrations/  Database schema + Row Level Security (SQL)
@@ -91,6 +92,8 @@ npm run api
 | `npm run partner`   | Start the partner app's dev server   |
 | `npm run admin`     | Start the admin panel at http://localhost:5173 |
 | `npm run admin:build` | Build the admin panel for hosting  |
+| `npm run site`      | Start the public website at http://localhost:5174 |
+| `npm run site:build` | Build the public website for hosting |
 | `npm run mobile`    | Start the Expo/Metro dev server      |
 | `npm run api`       | Start the NestJS API in watch mode   |
 | `npm run api:build` | Compile the API                      |

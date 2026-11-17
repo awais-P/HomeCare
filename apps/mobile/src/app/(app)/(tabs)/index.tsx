@@ -44,7 +44,7 @@ export default function HomeScreen() {
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? '';
   const otherPlaces = addresses.filter((a) => a.id !== selected?.id).slice(0, 2);
 
-  // Ordering arrives in P4/P5; until then each service explains that it's coming.
+  // Ustaad bookings arrive in Phase 5; until then that tile explains it's coming.
   const comingSoon = () => Alert.alert(t('home.comingSoonTitle'), t('home.comingSoonBody'));
 
   const addAddress = () => {
@@ -122,7 +122,7 @@ export default function HomeScreen() {
           </Pressable>
         }>
         <Pressable
-          onPress={comingSoon}
+          onPress={() => router.push('/order/new')}
           accessibilityRole="search"
           style={[styles.search, { flexDirection: row, backgroundColor: colors.surfaceAlt }]}>
           <Ionicons name="search" size={20} color={colors.textMuted} />
@@ -141,8 +141,7 @@ export default function HomeScreen() {
               icon="bag-handle"
               tint="saudaSoft"
               color="sauda"
-              badge={t('common.comingSoon')}
-              onPress={comingSoon}
+              onPress={() => router.push('/order/new')}
             />
             <ServiceTile
               variant="feature"
@@ -163,7 +162,7 @@ export default function HomeScreen() {
               icon="medkit"
               tint="dangerSoft"
               color="danger"
-              onPress={comingSoon}
+              onPress={() => router.push({ pathname: '/order/new', params: { category: 'pharmacy' } })}
             />
             <ServiceTile
               style={styles.flex}
@@ -171,7 +170,7 @@ export default function HomeScreen() {
               icon="cube"
               tint="successSoft"
               color="success"
-              onPress={comingSoon}
+              onPress={() => router.push({ pathname: '/order/new', params: { category: 'pick_drop' } })}
             />
           </View>
         </View>

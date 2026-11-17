@@ -42,7 +42,7 @@ gantt
 | P1 Customer sign-in & profile | 1 | to 22 Nov 2026 | New number signs up on a real phone and stays signed in after restart |
 | P2 Addresses & service zones 🚧 | 2 | to 6 Dec 2026 | Customer saves an address by map pin; outside-zone address is refused |
 | P3 Partner app, verification, admin 🚧 | 4 | to 3 Jan 2027 | A rider and an ustaad register, get approved in admin, and go online |
-| P4 Sauda Run MVP | 5 | to 7 Feb 2027 | 10 test errands completed end to end, cash settled |
+| P4 Sauda Run MVP 🚧 | 5 | to 7 Feb 2027 | 10 test errands completed end to end, cash settled |
 | P5 Ustaad MVP | 3 | to 28 Feb 2027 | 10 test jobs completed with quote → approve → done |
 | P6 Realtime & notifications | 2 | to 14 Mar 2027 | Status changes arrive as push within 5 s; live rider location on map |
 | P7 Trust & safety | 2 | to 28 Mar 2027 | SOS, share-trip and disputes work; admin can suspend a partner |
@@ -146,15 +146,23 @@ paid geocoder later only touches `features/map/app-map.tsx` or `features/locatio
 
 **Done when:** a rider and an ustaad register on their phones, an admin approves them, and they appear on the admin live map when online.
 
-### P4 Sauda Run MVP ⬜ (5 weeks)
+### P4 Sauda Run MVP 🚧 (5 weeks)
 **Goal:** the first real errand, end to end, cash only.
-- [ ] Create order: list (text, photos, voice note), category, preferred shop or nearest, address, notes
-- [ ] Price: delivery fee by distance band (decision D3) + actual item cost from bill photo
-- [ ] Dispatch (NestJS): nearest online riders within N km, offer one at a time with a timeout, fallback to admin manual dispatch
-- [ ] Order states: requested → accepted → at shop → purchasing → on the way → delivered (+ cancelled, failed); every change logged
-- [ ] Rider: accept, substitution messages, bill photo, mark delivered + cash collected
-- [ ] Customer: live status (polling), approve substitutions, see bill photo, rate rider
-- [ ] NestJS deployed (free tier or student credits) and verifying Supabase logins
+
+Slice 1 (done):
+- [x] Business settings in the database with provisional values for D3–D8 (admins edit them in the admin panel)
+- [x] Orders, status history, private order photos; every change goes through database functions (tested)
+- [x] Customer: New Sauda Run (category, list, up to 4 list photos, preferred shop, address, directions), order status with progress, rider call button, payment breakdown, bill photo, cancel (free → fee), rating
+- [x] Rider: nearby open orders (first to accept gets it), one active order at a time, steps: at shop (final fee from distance) → bill amount + photo (cash limit) → on the way → delivered & cash collected; give back before reaching the shop
+- [x] Admin: orders list with history, assign to a rider (manual dispatch), cancel with reason; settings editor
+- [x] Account deletion in both apps; Terms of Service and Privacy Policy (draft) in the apps and on a public website
+
+Next slices:
+- [ ] Substitution messages ("no Olpers, get Nestle?") approved by the customer
+- [ ] Voice note for the list
+- [ ] Automatic one-by-one offers to the nearest rider with a timeout (NestJS), instead of first-come
+- [ ] NestJS deployed and verifying Supabase logins
+- [ ] Customer sees the rider moving on the map (with P6 realtime)
 
 **Done when:** the team completes 10 test errands in the pilot sectors with real money and no manual database fixes.
 
@@ -198,6 +206,8 @@ paid geocoder later only touches `features/map/app-map.tsx` or `features/locatio
 ## 5. Decisions to make
 
 Business rules the code depends on. Each must be decided before the phase that needs it starts.
+D3–D8 now have **provisional values** in the database (`app_settings`, editable in the admin panel → Settings);
+the app works with them until the team confirms or changes them.
 
 | # | Decision | Needed by | Starting proposal |
 | --- | --- | --- | --- |

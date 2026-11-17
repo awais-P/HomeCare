@@ -13,6 +13,59 @@ export type PartnerStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'sus
 export type UstaadTrade = 'plumber' | 'electrician' | 'ac_technician' | 'mechanic';
 export type VehicleType = 'motorcycle' | 'bicycle' | 'car' | 'rickshaw';
 export type PayoutMethod = 'jazzcash' | 'easypaisa';
+export type OrderStatus = 'requested' | 'accepted' | 'at_shop' | 'on_the_way' | 'delivered' | 'cancelled';
+export type SaudaCategory = 'sabzi' | 'grocery' | 'meat' | 'bakery' | 'pharmacy' | 'food' | 'pick_drop' | 'other';
+export type OrderActor = 'customer' | 'rider' | 'admin';
+
+type OrderRow = {
+  id: string;
+  code: string;
+  customer_id: string | null;
+  rider_id: string | null;
+  status: OrderStatus;
+  category: SaudaCategory;
+  items_text: string;
+  photo_paths: string[];
+  shop_preference: string | null;
+  address_id: string | null;
+  delivery_text: string;
+  delivery_latitude: number;
+  delivery_longitude: number;
+  recipient_name: string | null;
+  recipient_phone: string | null;
+  instructions: string | null;
+  zone_id: string | null;
+  estimated_fee: number;
+  delivery_fee: number | null;
+  shop_distance_km: number | null;
+  item_cost: number | null;
+  bill_photo_path: string | null;
+  cash_collected: boolean;
+  cancellation_fee: number;
+  cancelled_by: OrderActor | null;
+  cancel_reason: string | null;
+  rating: number | null;
+  rating_comment: string | null;
+  created_at: string;
+  accepted_at: string | null;
+  at_shop_at: string | null;
+  on_the_way_at: string | null;
+  delivered_at: string | null;
+  cancelled_at: string | null;
+  updated_at: string;
+};
+
+export type OpenOrder = {
+  id: string;
+  code: string;
+  category: SaudaCategory;
+  items_text: string;
+  shop_preference: string | null;
+  area: string | null;
+  distance_km: number;
+  estimated_fee: number;
+  created_at: string;
+};
 
 type PartnerRow = {
   id: string;
@@ -123,6 +176,47 @@ export type Database = {
           },
         ];
       };
+      app_settings: {
+        Row: { key: string; value: Json; description: string; updated_at: string };
+        Insert: never;
+        Update: { value?: Json };
+        Relationships: [];
+      };
+      orders: {
+        Row: OrderRow;
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'orders_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'orders_rider_id_fkey';
+            columns: ['rider_id'];
+            isOneToOne: false;
+            referencedRelation: 'partners';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      order_events: {
+        Row: {
+          id: number;
+          order_id: string;
+          actor_id: string | null;
+          from_status: OrderStatus | null;
+          to_status: OrderStatus;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       waitlist_requests: {
         Row: {
           id: string;
@@ -167,6 +261,36 @@ export type Database = {
         Args: { p_partner: string; p_decision: PartnerStatus; p_reason?: string };
         Returns: PartnerRow;
       };
+      setting: { Args: { p_key: string }; Returns: Json };
+      create_sauda_order: {
+        Args: {
+          p_address_id: string;
+          p_category: SaudaCategory;
+          p_items_text: string;
+          p_shop_preference?: string;
+          p_instructions?: string;
+          p_photo_paths?: string[];
+        };
+        Returns: OrderRow;
+      };
+      list_open_orders: { Args: { lat: number; lng: number }; Returns: OpenOrder[] };
+      accept_order: { Args: { p_order: string }; Returns: OrderRow };
+      assign_order: { Args: { p_order: string; p_rider: string }; Returns: OrderRow };
+      advance_order: {
+        Args: {
+          p_order: string;
+          p_next: OrderStatus;
+          lat?: number;
+          lng?: number;
+          p_item_cost?: number;
+          p_bill_photo_path?: string;
+        };
+        Returns: OrderRow;
+      };
+      cancel_order: { Args: { p_order: string; p_reason?: string }; Returns: OrderRow };
+      rate_order: { Args: { p_order: string; p_rating: number; p_comment?: string }; Returns: OrderRow };
+      delete_my_account: { Args: Record<string, never>; Returns: undefined };
+      order_contact: { Args: { p_order: string }; Returns: { name: string | null; phone: string | null }[] };
     };
     Enums: {
       app_language: AppLanguage;
@@ -176,6 +300,9 @@ export type Database = {
       ustaad_trade: UstaadTrade;
       vehicle_type: VehicleType;
       payout_method: PayoutMethod;
+      order_status: OrderStatus;
+      sauda_category: SaudaCategory;
+      order_actor: OrderActor;
     };
     CompositeTypes: { [_ in never]: never };
   };
@@ -189,3 +316,5 @@ export type AddressUpdate = Database['public']['Tables']['addresses']['Update'];
 export type Partner = PartnerRow;
 export type PartnerInsert = Database['public']['Tables']['partners']['Insert'];
 export type PartnerUpdate = Database['public']['Tables']['partners']['Update'];
+export type Order = OrderRow;
+export type OrderEvent = Database['public']['Tables']['order_events']['Row'];

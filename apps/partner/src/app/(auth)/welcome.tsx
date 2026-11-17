@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { TermsNotice } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
 import { AppText, BrandMark, Button, IconCircle, LanguageToggle, Screen } from '@homecare/shared/ui';
@@ -21,9 +22,7 @@ export default function PartnerWelcomeScreen() {
       footer={
         <>
           <Button label={t('welcome.cta')} icon="call-outline" onPress={() => router.push('/phone')} />
-          <AppText variant="small" color="textSubtle" align="center">
-            {t('welcome.terms')}
-          </AppText>
+          <TermsNotice />
         </>
       }>
       <View style={styles.hero}>

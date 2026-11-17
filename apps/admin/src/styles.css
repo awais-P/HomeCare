@@ -115,3 +115,14 @@ h3 { margin: 8px 0 0; font-size: 16px; }
   .content { padding: 16px; }
   .docs { grid-template-columns: 1fr; }
 }
+
+.order-requested { background: var(--sauda-soft); color: var(--sauda); }
+.order-accepted, .order-at_shop, .order-on_the_way { background: var(--ustaad-soft); color: var(--ustaad); }
+.order-delivered { background: var(--primary-soft); color: var(--primary); }
+.order-cancelled { background: var(--danger-soft); color: var(--danger); }
+.timeline { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.settings { max-width: 860px; display: flex; flex-direction: column; gap: 16px; }
+.setting { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.setting-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.setting p { margin: 0; }
+code { background: var(--surface-alt); padding: 1px 5px; border-radius: 4px; }

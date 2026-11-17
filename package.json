@@ -19,7 +19,9 @@
     "partner": "npm run start -w @homecare/partner",
     "partner:android": "npm run android -w @homecare/partner",
     "admin": "npm run dev -w @homecare/admin",
-    "admin:build": "npm run build -w @homecare/admin"
+    "admin:build": "npm run build -w @homecare/admin",
+    "site": "npm run dev -w @homecare/site",
+    "site:build": "npm run build -w @homecare/site"
   },
   "engines": {
     "node": ">=22"

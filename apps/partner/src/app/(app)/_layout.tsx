@@ -13,6 +13,8 @@ export default function PartnerAppLayout() {
         <Stack.Screen name="documents" />
         <Stack.Screen name="account" />
         <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="delete-account" />
+        <Stack.Screen name="job/[id]" />
       </Stack>
     </PartnerProvider>
   );

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, BrandMark, Button, Chip, IconCircle, LanguageToggle, Screen } from '@homecare/shared/ui';
+import { TermsNotice } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import type { TranslationKey } from '@homecare/shared/i18n';
 import { spacing, useColors } from '@homecare/shared/theme';
@@ -24,9 +25,7 @@ export default function WelcomeScreen() {
       footer={
         <>
           <Button label={t('welcome.cta')} icon="call-outline" onPress={() => router.push('/phone')} />
-          <AppText variant="small" color="textSubtle" align="center">
-            {t('welcome.terms')}
-          </AppText>
+          <TermsNotice />
         </>
       }>
       <View style={styles.hero}>

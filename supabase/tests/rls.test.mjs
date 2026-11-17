@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01..03, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..04, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -322,6 +322,151 @@ async function checkPartners(db) {
   await db.exec(`reset role;`);
 }
 
+// ----------------------------------------------------------------------- P4: settings, orders, account deletion
+async function checkOrders(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  const customer = await newUser('923030000001');
+  const other = await newUser('923030000002');
+  const rider = await newUser('923030000003');
+  const rider2 = await newUser('923030000004');
+  const admin = await newUser('923030000005');
+  await db.query(`insert into admins (user_id) values ($1) on conflict do nothing`, [admin]);
+
+  // Riders: approved and online near G-10 (set directly as the test superuser).
+  for (const r of [rider, rider2]) {
+    await db.query(`insert into partners (id, role, status, is_online, last_latitude, last_longitude, last_seen_at)
+                    values ($1, 'rider', 'approved', true, 33.676, 73.015, now())`, [r]);
+  }
+
+  // Settings
+  await asUser(customer, async () => {
+    const bands = (await db.query(`select setting('delivery_fee_bands') v`)).rows[0].v;
+    ok(Array.isArray(bands) && bands[0].fee === 150, 'provisional delivery fee bands seeded');
+    const fees = (await db.query(`select delivery_fee_for_km(2) a, delivery_fee_for_km(5) b, delivery_fee_for_km(25) c`)).rows[0];
+    ok(fees.a === 150 && fees.b === 250 && fees.c === 350, 'fee bands: 2 km=150, 5 km=250, 25 km=350');
+    const upd = await db.query(`update app_settings set value = '1' where key = 'rider_cash_limit'`);
+    ok(upd.affectedRows === 0, 'customers cannot change settings');
+  });
+  await asUser(admin, async () => {
+    const upd = await db.query(`update app_settings set value = '5000' where key = 'rider_cash_limit'`);
+    ok(upd.affectedRows === 1, 'admins can change settings');
+  });
+
+  // Customer places orders
+  let order1, order2, order3, addressId;
+  await asUser(customer, async () => {
+    addressId = (await db.query(`insert into addresses (latitude, longitude, formatted_address, house)
+      values (33.676, 73.015, 'Sawan Road, G-10, Islamabad', 'House 7') returning id`)).rows[0].id;
+    const o = (await db.query(`select * from create_sauda_order($1, 'sabzi', '2 kg tamatar, 1 dozen anday', 'Ali Kiryana, G-10 Markaz')`, [addressId])).rows[0];
+    order1 = o.id;
+    ok(o.status === 'requested' && o.estimated_fee === 150 && /^HC-[0-9A-F]{6}$/.test(o.code), 'order placed: requested, Rs 150 estimate, HC- code');
+    ok(o.delivery_text.includes('House 7') && o.zone_id !== null, 'delivery address copied onto the order');
+    order2 = (await db.query(`select id from create_sauda_order($1, 'pharmacy', 'Panadol 1 strip')`, [addressId])).rows[0].id;
+    order3 = (await db.query(`select id from create_sauda_order($1, 'bakery', 'Dawn bread')`, [addressId])).rows[0].id;
+    await expectErr(`select create_sauda_order($1, 'grocery', 'too many')`, 'fourth active order refused', [addressId]);
+    const ev = (await db.query(`select to_status from order_events where order_id = $1`, [order1])).rows;
+    ok(ev.length === 1 && ev[0].to_status === 'requested', 'order creation logged');
+    await expectErr(`insert into orders (category, items_text, delivery_text, delivery_latitude, delivery_longitude, estimated_fee)
+                     values ('sabzi', 'x y', 'x', 33.6, 73.0, 1)`, 'customers cannot insert orders directly');
+    await expectErr(`update orders set estimated_fee = 1 where id = $1`, 'customers cannot change prices', [order1]);
+  });
+  await asUser(other, async () => {
+    const msg = await expectErr(`select create_sauda_order($1, 'sabzi', 'x y')`, "cannot order to someone else's address", [addressId]);
+    ok(msg?.includes('address_not_found'), 'error is address_not_found');
+    ok((await db.query(`select * from orders`)).rows.length === 0, "other customers cannot see the order");
+  });
+
+  // Rider takes and completes order 1
+  await asUser(rider, async () => {
+    ok((await db.query(`select * from orders`)).rows.length === 0, 'rider cannot read open orders directly');
+    const open = (await db.query(`select * from list_open_orders(33.68, 73.02)`)).rows;
+    ok(open.length === 3 && open[0].distance_km < 1 && !('delivery_text' in open[0]), 'online rider sees 3 nearby open orders, without addresses');
+    const far = (await db.query(`select * from list_open_orders(31.52, 74.35)`)).rows;
+    ok(far.length === 0, 'orders far away are not listed');
+    ok((await db.query(`select status from accept_order($1)`, [order1])).rows[0].status === 'accepted', 'rider accepts order');
+    const busy = await expectErr(`select accept_order($1)`, 'rider with an active order cannot take another', [order2]);
+    ok(busy?.includes('rider_busy'), 'error is rider_busy');
+    const row = (await db.query(`select delivery_text from orders where id = $1`, [order1])).rows[0];
+    ok(row?.delivery_text.includes('House 7'), 'assigned rider now sees the address');
+    const contact = (await db.query(`select * from order_contact($1)`, [order1])).rows[0];
+    ok(contact?.phone === '+923030000001', 'rider gets the customer phone for the active order');
+    await expectErr(`select advance_order($1, 'on_the_way')`, 'cannot skip the shop step', [order1]);
+    await expectErr(`select advance_order($1, 'at_shop')`, 'arriving at the shop needs a location', [order1]);
+    const atShop = (await db.query(`select * from advance_order($1, 'at_shop', 33.69, 73.015)`, [order1])).rows[0];
+    ok(atShop.status === 'at_shop' && atShop.delivery_fee === 150 && Number(atShop.shop_distance_km) > 1, 'at shop: fee set from shop-to-home distance');
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [`bills/${order1}.jpg`]);
+    await expectErr(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, 'bill photo for another order refused', [`bills/${order2}.jpg`]);
+    const cash = await expectErr(`select advance_order($1, 'on_the_way', null, null, 9000, $2)`, 'bill above the cash limit refused', [order1, `bills/${order1}.jpg`]);
+    ok(cash?.includes('cash_limit_exceeded'), 'error is cash_limit_exceeded');
+    await expectErr(`select advance_order($1, 'on_the_way', null, null, 1200)`, 'bill photo required', [order1]);
+    ok((await db.query(`select status from advance_order($1, 'on_the_way', null, null, 1200, $2)`, [order1, `bills/${order1}.jpg`])).rows[0].status === 'on_the_way', 'on the way with bill');
+    const done = (await db.query(`select * from advance_order($1, 'delivered')`, [order1])).rows[0];
+    ok(done.status === 'delivered' && done.cash_collected === true, 'delivered, cash collected');
+    // Release flow on order 2
+    ok((await db.query(`select status from accept_order($1)`, [order2])).rows[0].status === 'accepted', 'rider accepts a second order after delivering');
+    const released = (await db.query(`select * from cancel_order($1, 'Bike puncture')`, [order2])).rows[0];
+    ok(released.status === 'requested' && released.rider_id === null, 'rider releases order back to waiting');
+  });
+
+  await asUser(customer, async () => {
+    const bill = (await db.query(`select name from storage.objects where bucket_id = 'order-media' and name = $1`, [`bills/${order1}.jpg`])).rows;
+    ok(bill.length === 1, 'customer can see the bill photo of their order');
+    const rated = (await db.query(`select rating from rate_order($1, 5::smallint, 'Fast!')`, [order1])).rows[0];
+    ok(rated.rating === 5, 'customer rates delivered order');
+    ok((await db.query(`select * from order_contact($1)`, [order1])).rows.length === 0, 'no contact details after delivery');
+    await expectErr(`select rate_order($1, 4::smallint)`, 'cannot rate twice', [order1]);
+    await expectErr(`select cancel_order($1)`, 'cannot cancel a delivered order', [order1]);
+    const events = (await db.query(`select to_status from order_events where order_id = $1 order by id`, [order1])).rows.map((r) => r.to_status);
+    ok(events.join('>') === 'requested>accepted>at_shop>on_the_way>delivered', 'full status history logged');
+    const free = (await db.query(`select * from cancel_order($1)`, [order3])).rows[0];
+    ok(free.status === 'cancelled' && free.cancellation_fee === 0, 'cancel while searching is free');
+  });
+
+  // Admin assigns order 2 to rider 2; customer cancels after acceptance (fee)
+  await asUser(admin, async () => {
+    const all = (await db.query(`select id from orders where customer_id = $1`, [customer])).rows;
+    ok(all.length === 3, 'admin sees all orders');
+    ok((await db.query(`select status from assign_order($1, $2)`, [order2, rider2])).rows[0].status === 'accepted', 'admin assigns order to a rider');
+    await expectErr(`select cancel_order($1)`, 'admin cancel needs a reason', [order2]);
+  });
+  await asUser(customer, async () => {
+    const paid = (await db.query(`select * from cancel_order($1, 'Changed my mind')`, [order2])).rows[0];
+    ok(paid.status === 'cancelled' && paid.cancellation_fee === 50, 'cancel after a rider accepted costs Rs 50');
+  });
+  await asUser(rider, async () => {
+    await expectErr(`select assign_order($1, $2)`, 'riders cannot assign orders', [order2, rider]);
+  });
+
+  // Account deletion
+  let order4;
+  await asUser(customer, async () => {
+    order4 = (await db.query(`select id from create_sauda_order($1, 'grocery', 'Olpers 1 litre')`, [addressId])).rows[0].id;
+  });
+  await asUser(rider2, async () => {
+    await db.query(`select accept_order($1)`, [order4]);
+  });
+  await asUser(customer, async () => {
+    const blocked = await expectErr(`select delete_my_account()`, 'cannot delete account during an active order');
+    ok(blocked?.includes('active_order'), 'error is active_order');
+  });
+  await asUser(rider2, async () => {
+    await db.query(`select cancel_order($1, 'test release')`, [order4]); // back to requested
+  });
+  await asUser(customer, async () => {
+    await db.query(`select delete_my_account()`);
+  });
+  ok((await db.query(`select count(*)::int n from auth.users where id = $1`, [customer])).rows[0].n === 0, 'account deleted');
+  ok((await db.query(`select count(*)::int n from addresses where user_id = $1`, [customer])).rows[0].n === 0, 'addresses deleted with the account');
+  const kept = (await db.query(`select customer_id, delivery_text, status from orders where id = $1`, [order1])).rows[0];
+  ok(kept.customer_id === null && kept.delivery_text === 'Deleted account' && kept.status === 'delivered', 'finished order kept without personal details');
+  ok((await db.query(`select status from orders where id = $1`, [order4])).rows[0].status === 'cancelled', 'waiting order cancelled on deletion');
+
+  await db.exec(`set role anon;`);
+  await expectErr(`select delete_my_account()`, 'anon cannot call delete_my_account');
+  await expectErr(`select * from orders`, 'anon cannot read orders');
+  await db.exec(`reset role;`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -332,10 +477,11 @@ console.log('\n== A. supabase/migrations');
   await checkProfiles(db);
   await checkAddressesAndZones(db);
   await checkPartners(db);
+  await checkOrders(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01..03 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..04 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -353,6 +499,7 @@ console.log('\n== B. SETUP_01..03 (each run twice, with an earlier signup)');
   await checkProfiles(db);
   await checkAddressesAndZones(db);
   await checkPartners(db);
+  await checkOrders(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

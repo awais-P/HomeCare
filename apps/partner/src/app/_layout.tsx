@@ -58,6 +58,8 @@ function RootNavigator() {
           <Stack.Protected guard={gate === 'ready'} redirectTo={home}>
             <Stack.Screen name="(app)" />
           </Stack.Protected>
+          {/* Terms / Privacy: readable before and after signing in */}
+          <Stack.Screen name="legal/[doc]" />
         </Stack>
       )}
     </ThemeProvider>
