@@ -220,6 +220,17 @@ export type FavouriteUstaad = {
   jobs_done: number;
 };
 
+export type ChatMessageRow = {
+  id: number;
+  order_id: string | null;
+  job_id: string | null;
+  sender_id: string | null;
+  sender_role: 'customer' | 'partner' | 'admin';
+  body: string;
+  created_at: string;
+  read_at: string | null;
+};
+
 type PartnerRow = {
   id: string;
   role: PartnerRole;
@@ -431,6 +442,12 @@ export type Database = {
           },
         ];
       };
+      chat_messages: {
+        Row: ChatMessageRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       favourite_ustaads: {
         Row: { customer_id: string; ustaad_id: string; created_at: string };
         Insert: { ustaad_id: string };
@@ -568,6 +585,8 @@ export type Database = {
       job_contact: { Args: { p_job: string }; Returns: { name: string | null; phone: string | null }[] };
       assign_job: { Args: { p_job: string; p_ustaad: string }; Returns: UstaadJobRow };
       cancel_job: { Args: { p_job: string; p_reason?: string }; Returns: UstaadJobRow };
+      send_chat_message: { Args: { p_body: string; p_order?: string; p_job?: string }; Returns: ChatMessageRow };
+      mark_chat_read: { Args: { p_order?: string; p_job?: string }; Returns: number };
     };
     Enums: {
       app_language: AppLanguage;
@@ -604,3 +623,4 @@ export type Offer = OfferRow;
 export type UstaadJob = UstaadJobRow;
 export type JobEvent = Database['public']['Tables']['job_events']['Row'];
 export type JobOffer = JobOfferRow;
+export type ChatMessage = ChatMessageRow;

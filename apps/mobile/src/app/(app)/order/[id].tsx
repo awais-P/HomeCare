@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { VoiceNotePlayer } from '@homecare/shared/audio';
+import { ChatButton } from '@homecare/shared/chat';
 import { errorMessageKey } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import type { Order, OrderEvent, Substitution } from '@homecare/shared/lib';
@@ -335,6 +336,10 @@ export default function OrderDetailScreen() {
             </View>
             <Button label={t('order.detail.call')} icon="call" size="md" fullWidth={false} onPress={() => void Linking.openURL(`tel:${contact.phone}`)} />
           </Card>
+        ) : null}
+
+        {order.rider_id ? (
+          <ChatButton thread={{ kind: 'order', id: order.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'order', id: order.id } })} />
         ) : null}
 
         {/* The list */}

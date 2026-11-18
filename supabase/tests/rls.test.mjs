@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01..06, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..07, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql', 'SETUP_07_CHAT.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -906,6 +906,111 @@ async function checkUstaad(db) {
   await db.exec(`update partners set is_online = false`);
 }
 
+// ----------------------------------------------------------------------- P6: chat
+async function checkChat(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  await db.exec(`update partners set is_online = false`);
+  const customer = await newUser('923060000001');
+  const rider = await newUser('923060000002');
+  const ustaad = await newUser('923060000003');
+  const stranger = await newUser('923060000004');
+  const admin = await newUser('923060000005');
+  await db.query(`insert into admins (user_id) values ($1) on conflict do nothing`, [admin]);
+  await db.query(`insert into partners (id, role, status, is_online, last_latitude, last_longitude, last_seen_at)
+                  values ($1, 'rider', 'approved', true, 33.676, 73.015, now())`, [rider]);
+  await db.query(`insert into partners (id, role, trades, status, is_online, last_latitude, last_longitude, last_seen_at)
+                  values ($1, 'ustaad', '{plumber}', 'approved', true, 33.676, 73.015, now())`, [ustaad]);
+  for (const [who, app] of [[customer, 'customer'], [rider, 'partner'], [ustaad, 'partner']]) {
+    await asUser(who, () => db.query(`select register_push_token($1, $2, 'android')`, [`chat-token-${who}`, app]));
+  }
+  const outbox = async (userId) =>
+    (await db.query(`select kind, params, order_id from notification_outbox where user_id = $1 and kind = 'chat_message' order by id`, [userId])).rows;
+
+  let orderId, jobId, addressId;
+  await asUser(customer, async () => {
+    addressId = (await db.query(`insert into addresses (latitude, longitude, formatted_address)
+      values (33.676, 73.015, 'Street 4, G-10/3, Islamabad') returning id`)).rows[0].id;
+    orderId = (await db.query(`select id from place_sauda_order($1, 'bakery', 'Dawn bread')`, [addressId])).rows[0].id;
+    const early = await expectErr(`select send_chat_message('Hello?', $1)`, 'no chat while still finding a rider', [orderId]);
+    ok(early?.includes('chat_closed'), 'error is chat_closed');
+  });
+  await asUser(rider, () => db.query(`select accept_order($1)`, [orderId]));
+
+  await asUser(customer, async () => {
+    const m = (await db.query(`select * from send_chat_message('Please get the brown bread', $1)`, [orderId])).rows[0];
+    ok(m.sender_role === 'customer' && m.body === 'Please get the brown bread' && m.read_at === null, 'customer sends a message');
+    await expectErr(`insert into chat_messages (order_id, sender_role, body) values ($1, 'customer', 'x')`, 'apps cannot insert messages directly', [orderId]);
+    await expectErr(`select send_chat_message('x', $1, $2)`, 'a message belongs to one thread', [orderId, orderId]);
+    await expectErr(`select send_chat_message('   ', $1)`, 'empty message refused', [orderId]);
+  });
+  ok((await outbox(rider)).some((n) => n.order_id === orderId && n.params.preview === 'Please get the brown bread'), 'rider notified of the message');
+  await asUser(rider, async () => {
+    const thread = (await db.query(`select body from chat_messages where order_id = $1`, [orderId])).rows;
+    ok(thread.length === 1, 'rider sees the message');
+    await db.query(`select send_chat_message('Brown bread is out, white ok?', $1)`, [orderId]);
+  });
+  await asUser(customer, async () => {
+    ok((await db.query(`select mark_chat_read($1) n`, [orderId])).rows[0].n === 1, "customer marks the rider's message read");
+    const own = (await db.query(`select read_at from chat_messages where order_id = $1 and sender_id = $2`, [orderId, customer])).rows[0];
+    ok(own.read_at === null, 'own message is not marked read by yourself');
+  });
+  ok((await outbox(customer)).length === 1, 'customer notified of the reply');
+  await asUser(stranger, async () => {
+    ok((await db.query(`select * from chat_messages`)).rows.length === 0, "others cannot read someone's chat");
+    const msg = await expectErr(`select send_chat_message('hi', $1)`, 'others cannot write in it', [orderId]);
+    ok(msg?.includes('chat_not_found'), 'error is chat_not_found');
+  });
+  await asUser(ustaad, async () => {
+    ok((await db.query(`select * from chat_messages where order_id = $1`, [orderId])).rows.length === 0, 'other partners cannot read it');
+  });
+
+  // Finish the order: chat closes for the two of them, stays open for support
+  await asUser(rider, async () => {
+    await db.query(`select advance_order($1, 'at_shop', 33.68, 73.02)`, [orderId]);
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [`bills/${orderId}.jpg`]);
+    await db.query(`select advance_order($1, 'on_the_way', null, null, 300, $2)`, [orderId, `bills/${orderId}.jpg`]);
+    await db.query(`select advance_order($1, 'delivered')`, [orderId]);
+  });
+  await asUser(customer, async () => {
+    await expectErr(`select send_chat_message('thanks', $1)`, 'chat closed after delivery', [orderId]);
+  });
+  await asUser(admin, async () => {
+    ok((await db.query(`select * from chat_messages where order_id = $1`, [orderId])).rows.length === 2, 'admin reads every chat');
+    const s = (await db.query(`select * from send_chat_message('Support here: refund sent.', $1)`, [orderId])).rows[0];
+    ok(s.sender_role === 'admin', 'support can write after the order is finished');
+  });
+  ok((await outbox(customer)).length === 2 && (await outbox(rider)).length === 2, 'support messages notify both sides');
+
+  // Ustaad booking chat
+  await asUser(customer, async () => {
+    jobId = (await db.query(`select id from create_ustaad_job($1, 'plumber', 'Geyser not heating')`, [addressId])).rows[0].id;
+  });
+  await asUser(ustaad, async () => {
+    await db.query(`select accept_job($1)`, [jobId]);
+    const m = (await db.query(`select * from send_chat_message('Is the gas on?', null, $1)`, [jobId])).rows[0];
+    ok(m.job_id === jobId && m.sender_role === 'partner', 'ustaad writes in the booking chat');
+    for (let i = 0; i < 19; i++) await db.query(`select send_chat_message($2, null, $1)`, [jobId, `msg ${i}`]);
+    const slow = await expectErr(`select send_chat_message('one more', null, $1)`, 'more than 20 messages a minute refused', [jobId]);
+    ok(slow?.includes('slow_down'), 'error is slow_down');
+  });
+  ok((await outbox(customer)).some((n) => n.params.job_id === jobId && n.order_id === null), 'customer notified, with the booking id');
+  await asUser(customer, async () => {
+    ok((await db.query(`select * from chat_messages where job_id = $1`, [jobId])).rows.length === 20, 'customer sees the booking chat');
+    ok((await db.query(`select mark_chat_read(null, $1) n`, [jobId])).rows[0].n === 20, 'booking chat marked read');
+  });
+
+  // Account deletion keeps the thread without the person's words
+  await asUser(admin, () => db.query(`select cancel_job($1, 'Test over')`, [jobId]));
+  await asUser(customer, () => db.query(`select delete_my_account()`));
+  const left = (await db.query(`select body, sender_id from chat_messages where order_id = $1 and sender_role = 'customer'`, [orderId])).rows[0];
+  ok(left.body === '(deleted)' && left.sender_id === null, "deleted account's messages are blanked");
+
+  await db.exec(`set role anon;`);
+  await expectErr(`select * from chat_messages`, 'anon cannot read chats');
+  await db.exec(`reset role;`);
+  await db.exec(`update partners set is_online = false`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -919,10 +1024,11 @@ console.log('\n== A. supabase/migrations');
   await checkOrders(db);
   await checkSaudaLive(db);
   await checkUstaad(db);
+  await checkChat(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01..06 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..07 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -943,6 +1049,7 @@ console.log('\n== B. SETUP_01..06 (each run twice, with an earlier signup)');
   await checkOrders(db);
   await checkSaudaLive(db);
   await checkUstaad(db);
+  await checkChat(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

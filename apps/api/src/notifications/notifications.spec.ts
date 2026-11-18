@@ -41,6 +41,14 @@ describe('composeMessage', () => {
     expect(composeMessage('quote_answer', { approved: true }, 'ur')?.body).toContain('منظور');
   });
 
+  it('shows chat messages with who sent them', () => {
+    expect(composeMessage('chat_message', { code: 'HC-ABC123', from: 'customer', preview: 'Gate 2 please' })).toEqual({
+      title: 'Customer · HC-ABC123',
+      body: 'Gate 2 please',
+    });
+    expect(composeMessage('chat_message', { code: 'UJ-ABC123', from: 'admin', preview: 'Hi' })?.title).toBe('HomeCare support · UJ-ABC123');
+  });
+
   it('ignores unknown kinds and statuses', () => {
     expect(composeMessage('something_else', {})).toBeNull();
     expect(composeMessage('order_status', { status: 'requested' })).toBeNull();

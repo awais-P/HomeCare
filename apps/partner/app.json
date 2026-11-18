@@ -41,7 +41,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "HomeCare Partner shares your location while you are online so nearby jobs can be offered to you."
+          "locationWhenInUsePermission": "HomeCare Partner shares your location while you are online so nearby jobs can be offered to you.",
+          "locationAlwaysAndWhenInUsePermission": "HomeCare Partner shares your location while you are online, including when the phone is locked, so customers can see you on the map and you receive nearby jobs.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
         }
       ],
       [

@@ -44,7 +44,7 @@ gantt
 | P3 Partner app, verification, admin 🚧 | 4 | to 3 Jan 2027 | A rider and an ustaad register, get approved in admin, and go online |
 | P4 Sauda Run MVP 🚧 | 5 | to 7 Feb 2027 | 10 test errands completed end to end, cash settled |
 | P5 Ustaad MVP 🚧 | 3 | to 28 Feb 2027 | 10 test jobs completed with quote → approve → done |
-| P6 Realtime & notifications | 2 | to 14 Mar 2027 | Status changes arrive as push within 5 s; live rider location on map |
+| P6 Realtime & notifications 🚧 | 2 | to 14 Mar 2027 | Status changes arrive as push within 5 s; live rider location on map |
 | P7 Trust & safety | 2 | to 28 Mar 2027 | SOS, share-trip and disputes work; admin can suspend a partner |
 | P8 Pilot launch & pilot | 4 | to 25 Apr 2027 | 3-week pilot run; pilot metrics (section 8) measured |
 
@@ -194,9 +194,11 @@ Still to do:
 ### P6 Realtime & notifications 🚧 (2 weeks)
 - [x] Push notifications for every Sauda Run status change (code done in P4 slice 2; needs Firebase + hosted API to go live)
 - [x] Rider location on the customer's map, live order updates (Supabase Realtime)
-- [ ] Same for Ustaad jobs (P5)
-- [ ] In-app chat per order
-- [ ] SMS fallback for job offers to partners with weak data
+- [x] Same for Ustaad jobs (P5): ustaad on the map, live booking updates, push texts
+- [x] In-app chat per order and booking (`SETUP_07`): customer ↔ rider/ustaad while active, quick replies, unread counts, "seen", push for new messages; admins read every chat and reply as support
+- [x] Partner location while the phone is locked (Android foreground service, "Allow all the time"), only while online
+- [ ] SMS fallback for job offers to partners with weak data (needs a Pakistani SMS gateway account; same provider as real OTP SMS in P8)
+- [ ] Google Play background-location declaration and video (before the Play Store release)
 
 **Done when:** status changes reach the customer as a push within 5 seconds, and chat works both ways.
 

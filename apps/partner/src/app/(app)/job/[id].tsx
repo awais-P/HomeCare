@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, StyleSheet, View } from 'react-native';
 
 import { VoiceNotePlayer } from '@homecare/shared/audio';
+import { ChatButton } from '@homecare/shared/chat';
 import { errorMessageKey } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import type { Order, Substitution } from '@homecare/shared/lib';
@@ -220,6 +221,8 @@ export default function JobScreen() {
             <Button label={t('job.release')} variant="ghost" size="md" onPress={release} />
           </>
         ) : null}
+
+        <ChatButton thread={{ kind: 'order', id: order.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'order', id: order.id } })} />
 
         {/* Questions to the customer about missing items */}
         {subs.length ? (

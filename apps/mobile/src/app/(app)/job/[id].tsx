@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { ChatButton } from '@homecare/shared/chat';
 import { errorMessageKey } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import {
@@ -292,6 +293,10 @@ export default function JobDetailScreen() {
               </Pressable>
             ) : null}
           </Card>
+        ) : null}
+
+        {job.ustaad_id ? (
+          <ChatButton thread={{ kind: 'job', id: job.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'job', id: job.id } })} />
         ) : null}
 
         {/* Ustaad on the map */}

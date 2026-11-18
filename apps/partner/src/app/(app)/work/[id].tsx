@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, StyleSheet, View } from 'react-native';
 
+import { ChatButton } from '@homecare/shared/chat';
 import { errorMessageKey } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import { formatSlot, JOB_STATUS_KEY, jobTotal, TRADE_ICON, TRADE_KEY, useJobLive } from '@homecare/shared/jobs';
@@ -170,6 +171,8 @@ export default function WorkScreen() {
             </View>
           ) : null}
         </Card>
+
+        <ChatButton thread={{ kind: 'job', id: job.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'job', id: job.id } })} />
 
         {/* Steps */}
         {job.status === 'accepted' ? (

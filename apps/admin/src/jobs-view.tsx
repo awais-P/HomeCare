@@ -4,6 +4,7 @@ import type { JobEvent, JobOffer, JobStatus, UstaadJob, UstaadTrade } from '@hom
 import { formatE164ForDisplay } from '@homecare/shared/phone';
 
 import { errorText } from './api';
+import { ChatPanel } from './chat-panel';
 import { supabase } from './supabase';
 
 type JobRow = UstaadJob & {
@@ -281,6 +282,8 @@ function JobDetail({ job, onChanged }: { job: JobRow; onChanged: () => void }) {
           </ul>
         </>
       ) : null}
+
+      <ChatPanel kind="job" id={job.id} />
 
       <h3>History</h3>
       <ul className="timeline">

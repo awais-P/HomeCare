@@ -28,7 +28,7 @@ Two apps, two APKs; both can be installed on the same phone:
   (they are baked into the APK when it is built; change them → rebuild).
 - Optional, for push notifications: `google-services.json` in both app folders
   (`docs/PUSH_NOTIFICATIONS.md`).
-- Supabase: run `SETUP_01` … `SETUP_06` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
+- Supabase: run `SETUP_01` … `SETUP_07` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
   yourself an admin.
 
 ## Build and install
@@ -63,6 +63,15 @@ online. On phone B tap **Ustaad** → plumber → describe the problem → **Com
 accepts the offer → on my way → arrived → sends a price → phone B approves → phone A marks the
 work done. Phone B rates the ustaad and can save them as a favourite; within 7 days it can book a
 free revisit with **Problem came back?**
+
+**Chat:** once a rider or ustaad has accepted, both phones show a **Chat** button on the order
+or booking (with the number of new messages). Riders and ustaads have one-tap replies ("I'm at the
+shop", "I'm at your door"). The admin panel shows each chat and can reply as support.
+
+**Location while locked:** when a partner goes online, the app asks to share location while the phone
+is locked. On Android 11+ this opens Settings: choose **Allow all the time**. A notification ("you
+are online") stays while sharing; going offline stops it. Some phones (Xiaomi, Oppo, Vivo, Huawei)
+also need HomeCare Partner set to "No restrictions" for battery, or they stop it after a while.
 
 Both phones need location on. The rider must be within 5 km of the delivery address
 (`dispatch_radius_km` in admin → Settings) for offers.

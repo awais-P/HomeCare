@@ -4,6 +4,7 @@ import type { Offer, Order, OrderEvent, OrderStatus, Substitution } from '@homec
 import { formatE164ForDisplay } from '@homecare/shared/phone';
 
 import { errorText } from './api';
+import { ChatPanel } from './chat-panel';
 import { supabase } from './supabase';
 
 type OrderRow = Order & {
@@ -275,6 +276,8 @@ function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => v
           </ul>
         </>
       ) : null}
+
+      <ChatPanel kind="order" id={order.id} />
 
       <h3>History</h3>
       <ul className="timeline">

@@ -9,7 +9,9 @@ export const unstable_settings = { anchor: '(tabs)' };
 export default function AppLayout() {
   // Register this phone for order updates; a tapped notification opens that order.
   usePushNotifications('customer', (data) =>
-    data.job_id
+    data.kind === 'chat_message' && (data.job_id || data.order_id)
+      ? { pathname: '/chat/[kind]/[id]', params: data.job_id ? { kind: 'job', id: data.job_id } : { kind: 'order', id: data.order_id! } }
+      : data.job_id
       ? { pathname: '/job/[id]', params: { id: data.job_id } }
       : data.order_id
         ? { pathname: '/order/[id]', params: { id: data.order_id } }
@@ -25,6 +27,7 @@ export default function AppLayout() {
         <Stack.Screen name="order/[id]" />
         <Stack.Screen name="job/new" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="job/[id]" />
+        <Stack.Screen name="chat/[kind]/[id]" />
         <Stack.Screen name="addresses" />
         <Stack.Screen name="address/pick" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="address/details" />

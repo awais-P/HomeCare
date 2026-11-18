@@ -1,6 +1,7 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
@@ -19,6 +20,7 @@ import {
   Screen,
 } from '@homecare/shared/ui';
 
+import { openAppSettings } from '@/features/partner/background-location';
 import { useOnlineStatus } from '@/features/partner/online';
 import { usePartner } from '@/features/partner/partner-provider';
 import { JobsPanel } from '@/features/partner/jobs-panel';
@@ -141,7 +143,7 @@ function Dashboard({ partner }: { partner: Partner }) {
   const colors = useColors();
   const row = useRowDirection();
   const { profile } = useAuth();
-  const { online, busy, error, lastUpdate, goOnline, goOffline } = useOnlineStatus();
+  const { online, busy, error, lastUpdate, goOnline, goOffline, background, sharingInBackground, allowBackground } = useOnlineStatus();
   const [zones, setZones] = useState<GeoJSON.FeatureCollection | null>(null);
   const suspended = partner.status === 'suspended';
 
@@ -198,6 +200,29 @@ function Dashboard({ partner }: { partner: Partner }) {
             })}
           </AppText>
         ) : null}
+        {online && sharingInBackground ? (
+          <View style={[styles.onlineRow, { flexDirection: row }]}>
+            <Ionicons name="lock-closed" size={14} color={colors.success} />
+            <AppText variant="small" color="textMuted" style={styles.flex}>
+              {t('bgLocation.on')}
+            </AppText>
+          </View>
+        ) : null}
+        {online && Platform.OS !== 'web' && background !== null && background !== 'granted' ? (
+          <View style={[styles.bgCard, { backgroundColor: colors.surfaceAlt }]}>
+            <AppText variant="bodyStrong">{t('bgLocation.title')}</AppText>
+            <AppText variant="caption" color="textMuted">
+              {background === 'denied' ? t('bgLocation.denied') : t('bgLocation.body')}
+            </AppText>
+            <Button
+              label={background === 'denied' ? t('bgLocation.settings') : t('bgLocation.allow')}
+              icon="location-outline"
+              variant="secondary"
+              size="md"
+              onPress={() => void (background === 'denied' ? openAppSettings() : allowBackground())}
+            />
+          </View>
+        ) : null}
         {error ? <InlineMessage tone="error" message={t(error)} /> : null}
         <Button
           label={t(online ? 'partner.home.goOffline' : 'partner.home.goOnline')}
@@ -228,6 +253,7 @@ const styles = StyleSheet.create({
   identity: { alignItems: 'center', gap: spacing.md },
   onlineCard: { gap: spacing.md, borderWidth: 2 },
   onlineRow: { alignItems: 'center', gap: spacing.md },
+  bgCard: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md },
   dot: { width: 14, height: 14, borderRadius: 7 },
   mapCard: { height: 220, borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1 },
 });

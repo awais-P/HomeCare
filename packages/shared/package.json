@@ -6,6 +6,7 @@
   "exports": {
     "./audio": "./src/audio/index.ts",
     "./auth": "./src/auth/index.ts",
+    "./chat": "./src/chat/index.ts",
     "./db-types": "./src/lib/database.types.ts",
     "./i18n": "./src/i18n/index.ts",
     "./jobs": "./src/jobs/index.ts",

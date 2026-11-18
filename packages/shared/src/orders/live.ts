@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import { supabase } from '../lib';
 
-type Watch = { table: 'orders' | 'order_substitutions' | 'order_offers' | 'ustaad_jobs' | 'job_offers'; filter: string };
+type Watch = { table: 'orders' | 'order_substitutions' | 'order_offers' | 'ustaad_jobs' | 'job_offers' | 'chat_messages'; filter: string };
 
 /**
  * Calls `onChange` whenever a watched row changes (Supabase Realtime, filtered by the database's

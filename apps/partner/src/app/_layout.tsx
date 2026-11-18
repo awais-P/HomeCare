@@ -1,3 +1,5 @@
+// Defines the background location task before anything else (Android may start the app headless).
+import '@/features/partner/background-location';
 import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 

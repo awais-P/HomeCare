@@ -2,7 +2,7 @@
 
 Phones get a notification when something happens on an order or an ustaad booking: rider or
 ustaad accepted, on the way, arrived, a price to approve, a substitution question, a new offer for
-a rider or ustaad, and so on.
+a rider or ustaad, a new chat message, and so on.
 
 ## How it works
 

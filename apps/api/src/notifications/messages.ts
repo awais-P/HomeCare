@@ -134,6 +134,12 @@ export function composeMessage(kind: string, params: Params, language: Language 
         title: ur ? 'آپ کو کام دیا گیا' : 'A job was given to you',
         body: ur ? `بکنگ ${code}۔ تفصیل کے لیے ایپ کھولیں۔` : `Booking ${code}. Open the app for details.`,
       };
+    case 'chat_message': {
+      const from = str(params.from);
+      const who =
+        from === 'admin' ? (ur ? 'HomeCare سپورٹ' : 'HomeCare support') : from === 'customer' ? (ur ? 'گاہک' : 'Customer') : ur ? 'آپ کا پارٹنر' : 'Your partner';
+      return { title: `${who} · ${code}`, body: str(params.preview) };
+    }
     case 'job_cancelled':
       return {
         title: ur ? `بکنگ ${code}` : `Booking ${code}`,
