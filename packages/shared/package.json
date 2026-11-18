@@ -8,6 +8,7 @@
     "./auth": "./src/auth/index.ts",
     "./db-types": "./src/lib/database.types.ts",
     "./i18n": "./src/i18n/index.ts",
+    "./jobs": "./src/jobs/index.ts",
     "./legal": "./src/legal/index.ts",
     "./lib": "./src/lib/index.ts",
     "./location": "./src/location/index.ts",

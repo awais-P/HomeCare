@@ -31,6 +31,16 @@ describe('composeMessage', () => {
     expect(composeMessage('substitution_answer', { item: 'Olpers', approved: false })?.body).toBe('The customer said no: Olpers');
   });
 
+  it('writes ustaad booking updates', () => {
+    expect(composeMessage('job_status', { code: 'UJ-ABC123', status: 'arrived' })).toEqual({
+      title: 'Booking UJ-ABC123',
+      body: 'Your ustaad has arrived.',
+    });
+    expect(composeMessage('new_job_offer', { trade: 'plumber', timing: 'now', km: 1.4 })?.title).toBe('New job: Plumber');
+    expect(composeMessage('job_quote', { total: 2000 })?.body).toBe('Rs 2000 for the work. Tap to approve or decline.');
+    expect(composeMessage('quote_answer', { approved: true }, 'ur')?.body).toContain('منظور');
+  });
+
   it('ignores unknown kinds and statuses', () => {
     expect(composeMessage('something_else', {})).toBeNull();
     expect(composeMessage('order_status', { status: 'requested' })).toBeNull();

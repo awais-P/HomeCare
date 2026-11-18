@@ -7,7 +7,7 @@ import { addBeforeSignOut } from '../auth/auth-provider';
 import { supabase } from '../lib';
 
 export type PushApp = 'customer' | 'partner';
-export type PushData = { kind?: string; order_id?: string };
+export type PushData = { kind?: string; order_id?: string; job_id?: string };
 
 let currentToken: string | null = null;
 

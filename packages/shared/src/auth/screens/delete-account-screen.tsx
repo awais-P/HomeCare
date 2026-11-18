@@ -47,7 +47,7 @@ export function DeleteAccountScreen({
       await beforeDelete?.().catch(() => {});
       const { error: rpcError } = await supabase.rpc('delete_my_account');
       if (rpcError) {
-        setError(rpcError.message.includes('active_order') ? 'delete.activeOrder' : errorMessageKey(rpcError));
+        setError(/active_(order|job)/.test(rpcError.message) ? 'delete.activeOrder' : errorMessageKey(rpcError));
         return;
       }
       // The account is gone; clear the session on this phone. The app returns to the welcome screen.

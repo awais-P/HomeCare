@@ -9,7 +9,13 @@ export const unstable_settings = { anchor: 'index' };
 export default function PartnerAppLayout() {
   // New offers open the jobs screen; updates about a current order open that order.
   usePushNotifications('partner', (data) =>
-    data.kind === 'new_offer' ? '/' : data.order_id ? { pathname: '/job/[id]', params: { id: data.order_id } } : null,
+    data.kind === 'new_offer' || data.kind === 'new_job_offer'
+      ? '/'
+      : data.job_id
+        ? { pathname: '/work/[id]', params: { id: data.job_id } }
+        : data.order_id
+          ? { pathname: '/job/[id]', params: { id: data.order_id } }
+          : null,
   );
   return (
     <PartnerProvider>
@@ -21,6 +27,7 @@ export default function PartnerAppLayout() {
         <Stack.Screen name="edit-profile" />
         <Stack.Screen name="delete-account" />
         <Stack.Screen name="job/[id]" />
+        <Stack.Screen name="work/[id]" />
       </Stack>
     </PartnerProvider>
   );

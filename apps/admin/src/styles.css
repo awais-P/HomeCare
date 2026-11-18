@@ -126,3 +126,5 @@ h3 { margin: 8px 0 0; font-size: 16px; }
 .setting-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .setting p { margin: 0; }
 code { background: var(--surface-alt); padding: 1px 5px; border-radius: 4px; }
+
+.doc-grid { display: flex; flex-wrap: wrap; gap: 8px; }

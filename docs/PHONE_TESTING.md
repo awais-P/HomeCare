@@ -28,7 +28,7 @@ Two apps, two APKs; both can be installed on the same phone:
   (they are baked into the APK when it is built; change them → rebuild).
 - Optional, for push notifications: `google-services.json` in both app folders
   (`docs/PUSH_NOTIFICATIONS.md`).
-- Supabase: run `SETUP_01` … `SETUP_05` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
+- Supabase: run `SETUP_01` … `SETUP_06` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
   yourself an admin.
 
 ## Build and install
@@ -57,6 +57,12 @@ upload key, Phase 8).
    try **Item not available?** → phone B answers yes/no → bill amount + photo → on the way →
    delivered.
 4. Phone B watches the status and the rider on the map, then rates the rider.
+
+**An ustaad job:** on phone A apply as an ustaad instead (pick a trade, e.g. plumber), get approved, go
+online. On phone B tap **Ustaad** → plumber → describe the problem → **Come now** → book. Phone A
+accepts the offer → on my way → arrived → sends a price → phone B approves → phone A marks the
+work done. Phone B rates the ustaad and can save them as a favourite; within 7 days it can book a
+free revisit with **Problem came back?**
 
 Both phones need location on. The rider must be within 5 km of the delivery address
 (`dispatch_radius_km` in admin → Settings) for offers.

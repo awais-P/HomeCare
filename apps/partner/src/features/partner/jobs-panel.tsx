@@ -12,6 +12,7 @@ import { AppText, Badge, Button, Card, IconCircle, InlineMessage } from '@homeca
 
 import { acceptOrder, listOpenOrders, myActiveOrder, myOffer, respondOffer } from './jobs';
 import { OfferCard } from './offer-card';
+import { UstaadPanel } from './ustaad-panel';
 
 /** Offers last 30 s, so check often; new offers normally arrive instantly through Realtime. */
 const REFRESH_MS = 10_000;
@@ -112,7 +113,7 @@ export function JobsPanel({ partner, online }: { partner: Partner; online: boole
   }, [reload]);
 
   if (!isRider) {
-    return <InlineMessage tone="info" message={t('jobs.ustaadSoon')} />;
+    return <UstaadPanel partner={partner} online={online} />;
   }
 
   if (active) {

@@ -3,15 +3,17 @@ import { useEffect, useState } from 'react';
 
 import { LiveMap } from './live-map';
 import { Login } from './login';
+import { JobsView } from './jobs-view';
 import { OrdersView } from './orders-view';
 import { PartnersView } from './partners-view';
 import { SettingsView } from './settings-view';
 import { isConfigured, supabase } from './supabase';
 
-type View = 'orders' | 'applications' | 'partners' | 'map' | 'settings';
+type View = 'orders' | 'jobs' | 'applications' | 'partners' | 'map' | 'settings';
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'orders', label: 'Orders' },
+  { id: 'jobs', label: 'Ustaad jobs' },
   { id: 'applications', label: 'Applications' },
   { id: 'partners', label: 'Partners' },
   { id: 'map', label: 'Live map' },
@@ -97,6 +99,7 @@ export function App() {
         ) : null}
         {view === 'map' ? <LiveMap /> : null}
         {view === 'orders' ? <OrdersView /> : null}
+        {view === 'jobs' ? <JobsView /> : null}
         {view === 'settings' ? <SettingsView /> : null}
       </main>
     </div>

@@ -13,6 +13,7 @@ Run these files **in order**, each in its own new query. Each is safe to run aga
 | 3 | [`supabase/SETUP_03_PARTNERS.sql`](../supabase/SETUP_03_PARTNERS.sql) | Partners, private CNIC/selfie storage, admins, online status (P3) | `partners_table`, `partner_rules_ok`, `private_bucket_ok`, `document_rules_ok`, `actions_ok` |
 | 4 | [`supabase/SETUP_04_ORDERS_AND_ACCOUNT.sql`](../supabase/SETUP_04_ORDERS_AND_ACCOUNT.sql) | Business settings (provisional fees and limits), Sauda Run orders, order photos, account deletion (P4) | `settings_ok`, `orders_ok`, `order_rules_ok`, `order_media_ok`, `actions_ok` |
 | 5 | [`supabase/SETUP_05_SAUDA_LIVE.sql`](../supabase/SETUP_05_SAUDA_LIVE.sql) | Substitution questions, voice notes, automatic offers to the nearest rider, rider location, live updates, push notification queue (P4 slice 2) | `settings_ok`, `substitutions_ok`, `offers_ok`, `voice_and_photos_ok`, `push_ok`, `actions_ok` |
+| 6 | [`supabase/SETUP_06_USTAAD.sql`](../supabase/SETUP_06_USTAAD.sql) | Ustaad bookings: jobs, offers to ustaads, quotes, warranty revisits, favourites (P5) | `settings_ok`, `jobs_ok`, `offers_ok`, `favourites_ok`, `media_ok`, `actions_ok` |
 
 For each file:
 
@@ -32,7 +33,7 @@ You can see the tables under **Table Editor** (each marked "RLS enabled").
 ### Automatic offers timer (after SETUP_05)
 
 `SETUP_05` turns on a 10-second timer (pg_cron) that moves an unanswered offer on to the next rider.
-Check it worked: `select jobname, schedule from cron.job;` should list `homecare-dispatch` with `10 seconds`.
+Check it worked: `select jobname, schedule from cron.job;` should list `homecare-dispatch` (and, after `SETUP_06`, `homecare-job-dispatch`) with `10 seconds`.
 If it doesn't (or `cron` doesn't exist), turn on **Database → Extensions → pg_cron** and run `SETUP_05`
 again. Without the timer, offers still move on whenever a rider's app checks in (every 10 s while online).
 
@@ -137,4 +138,5 @@ Both values are public by design. **Never** put the database password or a `sb_s
 | "We're not in this area yet" for your own home   | Outside the pilot zones: add a test zone (step 1, zones)       |
 | Placing an order fails / no "Your orders"         | `SETUP_04` not run (step 1)                                    |
 | Voice note or rider questions fail; no offers    | `SETUP_05` not run (step 1)                                    |
+| "Couldn't book" an ustaad / no Ustaad jobs        | `SETUP_06` not run (step 1)                                    |
 | Riders never get an automatic offer              | Rider offline, more than 5 km away, busy, or last location older than 2 minutes |

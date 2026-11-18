@@ -1,7 +1,8 @@
 # Push notifications
 
-Phones get a notification when something happens on an order: rider accepted, at the shop,
-on the way, delivered, a substitution question, a new offer for a rider, and so on.
+Phones get a notification when something happens on an order or an ustaad booking: rider or
+ustaad accepted, on the way, arrived, a price to approve, a substitution question, a new offer for
+a rider or ustaad, and so on.
 
 ## How it works
 

@@ -24,6 +24,27 @@ const STATUS_UR: Record<string, string> = {
   cancelled: 'آپ کا آرڈر منسوخ ہو گیا۔ تفصیل کے لیے ٹیپ کریں۔',
 };
 
+const JOB_EN: Record<string, string> = {
+  requested: 'Your ustaad had to drop out. We are finding another one.',
+  accepted: 'An ustaad accepted your booking.',
+  on_the_way: 'Your ustaad is on the way.',
+  arrived: 'Your ustaad has arrived.',
+  completed: 'Job done! Tap to rate your ustaad.',
+  cancelled: 'Your booking was cancelled. Tap for details.',
+};
+
+const JOB_UR: Record<string, string> = {
+  requested: 'آپ کا استاد نہیں آ سکا۔ ہم دوسرا استاد ڈھونڈ رہے ہیں۔',
+  accepted: 'ایک استاد نے آپ کی بکنگ قبول کر لی۔',
+  on_the_way: 'آپ کا استاد راستے میں ہے۔',
+  arrived: 'آپ کا استاد پہنچ گیا ہے۔',
+  completed: 'کام مکمل! استاد کو ریٹنگ دینے کے لیے ٹیپ کریں۔',
+  cancelled: 'آپ کی بکنگ منسوخ ہو گئی۔ تفصیل کے لیے ٹیپ کریں۔',
+};
+
+const TRADE_EN: Record<string, string> = { plumber: 'Plumber', electrician: 'Electrician', ac_technician: 'AC technician', mechanic: 'Mechanic' };
+const TRADE_UR: Record<string, string> = { plumber: 'پلمبر', electrician: 'الیکٹریشن', ac_technician: 'اے سی ٹیکنیشن', mechanic: 'مکینک' };
+
 export function composeMessage(kind: string, params: Params, language: Language = 'en'): Message | null {
   const ur = language === 'ur';
   const code = str(params.code);
@@ -75,6 +96,49 @@ export function composeMessage(kind: string, params: Params, language: Language 
         title: ur ? `آرڈر ${code}` : `Order ${code}`,
         body: ur ? 'یہ آرڈر منسوخ ہو گیا۔' : 'This order was cancelled.',
       };
+    case 'job_status': {
+      const body = (ur ? JOB_UR : JOB_EN)[str(params.status)];
+      if (!body) return null;
+      return { title: ur ? `بکنگ ${code}` : `Booking ${code}`, body };
+    }
+    case 'new_job_offer': {
+      const trade = (ur ? TRADE_UR : TRADE_EN)[str(params.trade)] ?? '';
+      const when = params.timing === 'scheduled' ? (ur ? 'وقت مقرر' : 'booked slot') : ur ? 'ابھی' : 'come now';
+      return {
+        title: ur ? `نیا کام: ${trade}` : `New job: ${trade}`,
+        body: ur
+          ? `${when} · ${str(params.km)} کلومیٹر۔ قبول کرنے کے لیے ایپ کھولیں۔`
+          : `${when} · ${str(params.km)} km away. Open the app to accept.`,
+      };
+    }
+    case 'job_quote':
+      return {
+        title: ur ? 'استاد کی قیمت' : "Your ustaad's price",
+        body: ur
+          ? `کام کی قیمت ${str(params.total)} روپے۔ منظور کرنے کے لیے ٹیپ کریں۔`
+          : `Rs ${str(params.total)} for the work. Tap to approve or decline.`,
+      };
+    case 'quote_answer':
+      return {
+        title: ur ? `بکنگ ${code}` : `Booking ${code}`,
+        body: params.approved
+          ? ur
+            ? 'گاہک نے قیمت منظور کر لی۔ کام شروع کریں۔'
+            : 'The customer approved your price. Start the work.'
+          : ur
+            ? 'گاہک نے قیمت نامنظور کی۔ وزٹ فیس وصول کریں۔'
+            : 'The customer declined the price. Collect the visit fee.',
+      };
+    case 'job_assigned':
+      return {
+        title: ur ? 'آپ کو کام دیا گیا' : 'A job was given to you',
+        body: ur ? `بکنگ ${code}۔ تفصیل کے لیے ایپ کھولیں۔` : `Booking ${code}. Open the app for details.`,
+      };
+    case 'job_cancelled':
+      return {
+        title: ur ? `بکنگ ${code}` : `Booking ${code}`,
+        body: ur ? 'یہ بکنگ منسوخ ہو گئی۔' : 'This booking was cancelled.',
+      };
     default:
       return null;
   }
@@ -83,6 +147,6 @@ export function composeMessage(kind: string, params: Params, language: Language 
 /** Notifications that are useless after a while (an offer lasts 30 s) are dropped instead of sent late. */
 export function isStale(kind: string, createdAt: Date, now: Date = new Date()): boolean {
   const ageMs = now.getTime() - createdAt.getTime();
-  const limitMs = kind === 'new_offer' ? 60_000 : 30 * 60_000;
+  const limitMs = kind === 'new_offer' || kind === 'new_job_offer' ? 60_000 : 30 * 60_000;
   return ageMs > limitMs;
 }

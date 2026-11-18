@@ -43,7 +43,7 @@ gantt
 | P2 Addresses & service zones 🚧 | 2 | to 6 Dec 2026 | Customer saves an address by map pin; outside-zone address is refused |
 | P3 Partner app, verification, admin 🚧 | 4 | to 3 Jan 2027 | A rider and an ustaad register, get approved in admin, and go online |
 | P4 Sauda Run MVP 🚧 | 5 | to 7 Feb 2027 | 10 test errands completed end to end, cash settled |
-| P5 Ustaad MVP | 3 | to 28 Feb 2027 | 10 test jobs completed with quote → approve → done |
+| P5 Ustaad MVP 🚧 | 3 | to 28 Feb 2027 | 10 test jobs completed with quote → approve → done |
 | P6 Realtime & notifications | 2 | to 14 Mar 2027 | Status changes arrive as push within 5 s; live rider location on map |
 | P7 Trust & safety | 2 | to 28 Mar 2027 | SOS, share-trip and disputes work; admin can suspend a partner |
 | P8 Pilot launch & pilot | 4 | to 25 Apr 2027 | 3-week pilot run; pilot metrics (section 8) measured |
@@ -172,13 +172,22 @@ Next:
 
 **Done when:** the team completes 10 test errands in the pilot sectors with real money and no manual database fixes.
 
-### P5 Ustaad MVP ⬜ (3 weeks)
+### P5 Ustaad MVP 🚧 (3 weeks)
 **Goal:** home repair bookings, reusing P4's dispatch, states and ratings.
-- [ ] Trades: plumber, electrician, AC technician, mechanic
-- [ ] Book "come now" (surge fee) or a scheduled slot; problem photos/video
-- [ ] Visit fee → ustaad sends quote in-app (labour + parts) → customer approves → work → done
-- [ ] 7-day warranty: "issue came back" creates a free revisit job
-- [ ] Favourite ustaad; rebook the same person
+
+Built (`SETUP_06`, tested):
+- [x] Trades: plumber, electrician, AC technician, mechanic
+- [x] Book "come now" (visit fee + surge) or a slot 1 hour–14 days ahead, 9 am–8 pm; problem photos
+- [x] Automatic offers to the nearest free ustaad with that trade (45 s each, 3 ustaads; a favourite is asked first), open jobs list, admin assign
+- [x] On the way → arrived → quote in-app (labour + parts) → customer approves (work) or declines (visit fee only) → completed, cash
+- [x] Visit fee credited: the customer pays the quote, at least the visit fee
+- [x] 7-day warranty: "problem came back" creates a free revisit (labour free) offered to the same ustaad
+- [x] Favourite ustaads (only someone who worked for you); ratings; ustaad on the customer's map; push texts
+- [x] Admin: Ustaad jobs list, details, offers, assign, cancel
+
+Still to do:
+- [ ] Problem videos (photos only for now)
+- [ ] Test on phones with real ustaads; tune visit fee, surge and warranty (D7, D8)
 
 **Done when:** 10 test jobs go through visit → quote → approve → complete, including one warranty revisit.
 

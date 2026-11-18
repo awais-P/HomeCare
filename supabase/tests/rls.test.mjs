@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01..05, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..06, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -644,6 +644,268 @@ async function checkSaudaLive(db) {
   await db.exec(`update partners set is_online = false`);
 }
 
+// ----------------------------------------------------------------------- P5: Ustaad bookings
+async function checkUstaad(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  await db.exec(`update partners set is_online = false`);
+  const customer = await newUser('923050000001');
+  const u1 = await newUser('923050000002'); // plumber + electrician, nearest
+  const u2 = await newUser('923050000003'); // plumber, farther
+  const u3 = await newUser('923050000004'); // electrician only
+  const u4 = await newUser('923050000005'); // plumber, offline
+  const stranger = await newUser('923050000006');
+  const admin = await newUser('923050000007');
+  await db.query(`insert into admins (user_id) values ($1) on conflict do nothing`, [admin]);
+  const ustaads = [
+    [u1, '{plumber,electrician}', 33.6762, 73.0152, true],
+    [u2, '{plumber}', 33.69, 73.03, true],
+    [u3, '{electrician}', 33.70, 73.04, true],
+    [u4, '{plumber}', 33.676, 73.015, false],
+  ];
+  for (const [id, trades, lat, lng, online] of ustaads) {
+    await db.query(`insert into partners (id, role, trades, status, is_online, last_latitude, last_longitude, last_seen_at)
+                    values ($1, 'ustaad', $2, 'approved', $3, $4, $5, now())`, [id, trades, online, lat, lng]);
+  }
+  await db.query(`update profiles set full_name = 'Ustaad Two' where id = $1`, [u2]);
+  for (const [who, app] of [[customer, 'customer'], [u1, 'partner'], [u2, 'partner']]) {
+    await asUser(who, () => db.query(`select register_push_token($1, $2, 'android')`, [`token-${who}`, app]));
+  }
+  const offersOf = async (jobId) =>
+    (await db.query(`select ustaad_id, status from job_offers where job_id = $1 order by offered_at, status`, [jobId])).rows;
+  const openOffer = async (jobId) => (await offersOf(jobId)).find((f) => f.status === 'offered')?.ustaad_id;
+  const outbox = async (userId) => (await db.query(`select kind, params from notification_outbox where user_id = $1 order by id`, [userId])).rows;
+  const slot = async (dayHours) =>
+    (await db.query(`select ((date_trunc('day', now() at time zone 'Asia/Karachi') + $1::interval) at time zone 'Asia/Karachi') t`, [dayHours])).rows[0].t;
+  const book = (trade, extra = '') => db.query(`select * from create_ustaad_job($1, '${trade}', 'Kitchen tap leaking'${extra})`, [addressId]);
+
+  let addressId, j1, j2, j3, j4, j5, j6, w;
+  const photo = `${customer}/job-tap1.jpg`;
+  await asUser(customer, async () => {
+    addressId = (await db.query(`insert into addresses (latitude, longitude, formatted_address)
+      values (33.676, 73.015, 'Street 9, G-10/1, Islamabad') returning id`)).rows[0].id;
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [photo]);
+    const j = (await db.query(`select * from create_ustaad_job($1, 'plumber', 'Kitchen tap leaking', 'now', null, $2)`, [addressId, [photo]])).rows[0];
+    j1 = j.id;
+    ok(j.status === 'requested' && j.visit_fee === 625 && j.surge_percent === 25 && /^UJ-[0-9A-F]{6}$/.test(j.code),
+      'come-now job booked: visit fee Rs 500 + 25% surge = Rs 625');
+    ok(j.address_text.includes('G-10/1') && j.zone_id !== null, 'address copied onto the job');
+    const soon = await expectErr(`select create_ustaad_job($1, 'plumber', 'x y', 'scheduled', now() + interval '20 minutes')`,
+      'slot less than an hour away refused', [addressId]);
+    ok(soon?.includes('invalid_slot'), 'error is invalid_slot');
+    await expectErr(`select create_ustaad_job($1, 'plumber', 'x y', 'scheduled', $2)`, 'slot at 3 am refused', [addressId, await slot('1 day 3 hours')]);
+    await expectErr(`select create_ustaad_job($1, 'plumber', 'x y', 'now', null, '{}', $2)`, 'preferred ustaad without that trade refused', [addressId, u3]);
+    await expectErr(`insert into ustaad_jobs (trade, problem_text, address_text, latitude, longitude, visit_fee) values ('plumber', 'x y', 'x', 33.6, 73.0, 1)`,
+      'customers cannot insert jobs directly');
+    await expectErr(`update ustaad_jobs set visit_fee = 1 where id = $1`, 'customers cannot change the visit fee', [j1]);
+    ok((await db.query(`select * from job_offers`)).rows.length === 0, 'customers cannot see job offers');
+  });
+  await asUser(stranger, async () => {
+    ok((await db.query(`select * from ustaad_jobs`)).rows.length === 0, "others cannot see someone's jobs");
+  });
+
+  // Offers: nearest free ustaad with the trade
+  ok((await openOffer(j1)) === u1, 'job offered to the nearest online plumber');
+  ok((await outbox(u1)).some((n) => n.kind === 'new_job_offer'), 'ustaad gets a new-job notification');
+  await asUser(u1, async () => {
+    const [offer] = (await db.query(`select * from my_job_offer()`)).rows;
+    ok(offer?.job_id === j1 && offer.problem_text === 'Kitchen tap leaking' && offer.seconds_left > 30 && !('address_text' in offer),
+      'ustaad sees the offer: problem, countdown, no address');
+    ok((await db.query(`select name from storage.objects where name = $1`, [photo])).rows.length === 1, 'offered ustaad sees the problem photo');
+    ok((await db.query(`select respond_job_offer($1, false) r`, [offer.offer_id])).rows[0].r === null, 'ustaad skips the offer');
+  });
+  ok((await openOffer(j1)) === u2, 'skipped job goes to the next nearest plumber');
+  await asUser(u3, async () => {
+    const open = (await db.query(`select * from list_open_jobs(33.676, 73.015)`)).rows;
+    ok(open.every((r) => r.trade === 'electrician'), 'an electrician only sees electrician jobs');
+  });
+  await asUser(stranger, async () => {
+    ok((await db.query(`select name from storage.objects where name = $1`, [photo])).rows.length === 0, 'others cannot see the problem photo');
+    await expectErr(`select * from list_open_jobs(33.676, 73.015)`, 'non-ustaads cannot list jobs');
+  });
+
+  await asUser(u2, async () => {
+    const [offer] = (await db.query(`select * from my_job_offer()`)).rows;
+    const taken = (await db.query(`select * from respond_job_offer($1, true)`, [offer.offer_id])).rows[0];
+    ok(taken.status === 'accepted' && taken.ustaad_id === u2, 'ustaad accepts through the offer');
+    ok((await db.query(`select address_text from ustaad_jobs where id = $1`, [j1])).rows[0]?.address_text.includes('G-10/1'),
+      'accepted ustaad now sees the address');
+    ok((await db.query(`select * from job_contact($1)`, [j1])).rows[0]?.phone === '+923050000001', 'ustaad gets the customer phone');
+  });
+  ok((await outbox(customer)).some((n) => n.kind === 'job_status' && n.params.status === 'accepted'), 'customer notified: ustaad accepted');
+
+  await asUser(customer, async () => {
+    j3 = (await book('plumber')).rows[0].id;
+  });
+  ok((await openOffer(j3)) === u1, 'the next come-now job goes to the free ustaad, not the busy one');
+  await asUser(u2, async () => {
+    const busy = await expectErr(`select accept_job($1)`, 'an ustaad with a come-now job cannot take another', [j3]);
+    ok(busy?.includes('ustaad_busy'), 'error is ustaad_busy');
+  });
+
+  // Customer's view of the ustaad
+  await asUser(customer, async () => {
+    const card = (await db.query(`select * from job_ustaad($1)`, [j1])).rows[0];
+    ok(card?.name === 'Ustaad Two' && card.phone === '+923050000003' && card.jobs_done === 0 && card.is_favourite === false,
+      "customer sees the ustaad's name, phone and record");
+    ok((await db.query(`select * from job_ustaad_location($1)`, [j1])).rows[0]?.latitude === 33.69, 'customer sees where the ustaad is');
+    await expectErr(`insert into favourite_ustaads (ustaad_id) values ($1)`, 'cannot favourite an ustaad before they worked for you', [u2]);
+    const early = await expectErr(`select answer_quote($1, true)`, 'no quote to approve yet', [j1]);
+    ok(early?.includes('no_quote_to_answer'), 'error is no_quote_to_answer');
+  });
+  await asUser(stranger, async () => {
+    ok((await db.query(`select * from job_ustaad_location($1)`, [j1])).rows.length === 0, "others cannot see the ustaad's location");
+  });
+
+  // Visit → quote → approve → complete
+  await asUser(u2, async () => {
+    await expectErr(`select advance_job($1, 'arrived', 33.676, 73.015)`, 'cannot skip "on the way"', [j1]);
+    await db.query(`select advance_job($1, 'on_the_way')`, [j1]);
+    await expectErr(`select advance_job($1, 'arrived')`, 'arriving needs a location', [j1]);
+    ok((await db.query(`select status from advance_job($1, 'arrived', 33.676, 73.015)`, [j1])).rows[0].status === 'arrived', 'ustaad arrived');
+    await expectErr(`select send_quote($1, -5)`, 'negative quote refused', [j1]);
+    await db.query(`select send_quote($1, 1500, 800, 'Replace mixer valve')`, [j1]);
+    const revised = (await db.query(`select * from send_quote($1, 1200, 800, 'Replace mixer valve')`, [j1])).rows[0];
+    ok(revised.status === 'quoted' && revised.labour_cost === 1200 && revised.parts_cost === 800, 'quote sent and revised');
+  });
+  ok((await outbox(customer)).some((n) => n.kind === 'job_quote' && n.params.total === 2000), 'customer notified of the quote');
+  await asUser(customer, async () => {
+    await expectErr(`select send_quote($1, 1, 1)`, 'customers cannot write quotes', [j1]);
+    await expectErr(`select cancel_job($1)`, 'customer cannot cancel at the quote stage (decline instead)', [j1]);
+    ok((await db.query(`select status from answer_quote($1, true)`, [j1])).rows[0].status === 'in_progress', 'customer approves the quote');
+  });
+  ok((await outbox(u2)).some((n) => n.kind === 'quote_answer' && n.params.approved === true), 'ustaad notified: quote approved');
+  await asUser(u2, async () => {
+    const done = (await db.query(`select *, warranty_until > now() + interval '6 days' w from complete_job($1)`, [j1])).rows[0];
+    ok(done.status === 'completed' && done.amount_due === 2000 && done.cash_collected && done.w, 'job completed: Rs 2,000 due, 7-day warranty');
+  });
+  await asUser(customer, async () => {
+    ok((await db.query(`select rating from rate_job($1, 5::smallint, 'Neat work')`, [j1])).rows[0].rating === 5, 'customer rates the ustaad');
+    await expectErr(`select rate_job($1, 4::smallint)`, 'cannot rate twice', [j1]);
+    await db.query(`insert into favourite_ustaads (ustaad_id) values ($1)`, [u2]);
+    const favs = (await db.query(`select * from my_favourite_ustaads()`)).rows;
+    ok(favs.length === 1 && favs[0].ustaad_id === u2 && Number(favs[0].rating_avg) === 5 && favs[0].jobs_done === 1,
+      'favourite ustaad saved with rating and jobs done');
+    const card = (await db.query(`select * from job_ustaad($1)`, [j1])).rows[0];
+    ok(card.phone === null && card.is_favourite === true, 'phone hidden after the job; marked as favourite');
+    const events = (await db.query(`select to_status from job_events where job_id = $1 order by id`, [j1])).rows.map((r) => r.to_status);
+    ok(events.join('>') === 'requested>accepted>on_the_way>arrived>quoted>in_progress>completed', 'full job history logged');
+  });
+
+  // Warranty revisit, offered to the same ustaad first
+  await asUser(customer, async () => {
+    w = (await db.query(`select * from report_issue_again($1, 'Leaking again')`, [j1])).rows[0];
+    ok(w.is_warranty && w.visit_fee === 0 && w.parent_job_id === j1 && w.preferred_ustaad_id === u2, 'problem came back: free revisit job');
+    const twice = await expectErr(`select report_issue_again($1, 'again')`, 'only one revisit at a time', [j1]);
+    ok(twice?.includes('revisit_exists'), 'error is revisit_exists');
+  });
+  ok((await openOffer(w.id)) === u2, 'revisit offered to the same ustaad first');
+  await asUser(u2, async () => {
+    const [offer] = (await db.query(`select * from my_job_offer()`)).rows;
+    ok(offer?.is_warranty === true, 'ustaad sees it is a warranty revisit');
+    await db.query(`select respond_job_offer($1, true)`, [offer.offer_id]);
+    await db.query(`select advance_job($1, 'on_the_way')`, [w.id]);
+    await db.query(`select advance_job($1, 'arrived', 33.676, 73.015)`, [w.id]);
+    const free = await expectErr(`select send_quote($1, 500, 300)`, 'warranty labour must be free', [w.id]);
+    ok(free?.includes('warranty_labour_free'), 'error is warranty_labour_free');
+    await db.query(`select send_quote($1, 0, 300, 'New washer')`, [w.id]);
+  });
+  await asUser(customer, () => db.query(`select answer_quote($1, true)`, [w.id]));
+  await asUser(u2, async () => {
+    ok((await db.query(`select amount_due from complete_job($1)`, [w.id])).rows[0].amount_due === 300, 'revisit: customer pays parts only');
+  });
+
+  // Declined quote → visit fee only
+  await asUser(u1, async () => {
+    const [offer] = (await db.query(`select * from my_job_offer()`)).rows;
+    ok(offer?.job_id === j3, 'the other ustaad has the second job on offer');
+    await db.query(`select respond_job_offer($1, true)`, [offer.offer_id]);
+    await db.query(`select advance_job($1, 'on_the_way')`, [j3]);
+    await db.query(`select advance_job($1, 'arrived', 33.676, 73.015)`, [j3]);
+    await db.query(`select send_quote($1, 3000, 0)`, [j3]);
+  });
+  await asUser(customer, async () => {
+    const declined = (await db.query(`select * from answer_quote($1, false)`, [j3])).rows[0];
+    ok(declined.status === 'visit_only' && declined.amount_due === 625, 'quote declined: only the Rs 625 visit fee is due');
+    ok((await db.query(`select rating from rate_job($1, 3::smallint)`, [j3])).rows[0].rating === 3, 'visit-only job can be rated');
+  });
+
+  // Scheduled job: too early to set off; free cancellation well before the slot
+  await asUser(customer, async () => {
+    const s = (await db.query(`select * from create_ustaad_job($1, 'plumber', 'Install geyser', 'scheduled', $2)`, [addressId, await slot('1 day 11 hours')])).rows[0];
+    j2 = s.id;
+    ok(s.timing === 'scheduled' && s.visit_fee === 500 && s.scheduled_for !== null, 'scheduled job booked at 11 am tomorrow, no surge');
+  });
+  await asUser(u1, async () => {
+    ok((await db.query(`select status from accept_job($1)`, [j2])).rows[0].status === 'accepted', 'ustaad accepts the scheduled job');
+    const early = await expectErr(`select advance_job($1, 'on_the_way')`, 'cannot set off more than 2 hours before the slot', [j2]);
+    ok(early?.includes('too_early'), 'error is too_early');
+  });
+  await asUser(customer, async () => {
+    const c = (await db.query(`select * from cancel_job($1)`, [j2])).rows[0];
+    ok(c.status === 'cancelled' && c.cancellation_fee === 0, 'scheduled job cancelled free well before the slot');
+    j4 = (await book('electrician')).rows[0].id;
+  });
+  await asUser(u1, async () => {
+    await db.query(`select accept_job($1)`, [j4]);
+  });
+  await asUser(customer, async () => {
+    const c = (await db.query(`select * from cancel_job($1, 'Fixed it myself')`, [j4])).rows[0];
+    ok(c.status === 'cancelled' && c.cancellation_fee === 50, 'come-now job cancelled after acceptance: Rs 50');
+    j5 = (await book('plumber')).rows[0].id;
+  });
+
+  // Ustaad gives a job back; admin assigns it
+  await asUser(u1, async () => {
+    await db.query(`select accept_job($1)`, [j5]);
+    const back = (await db.query(`select * from cancel_job($1, 'Bike broke down')`, [j5])).rows[0];
+    ok(back.status === 'requested' && back.ustaad_id === null, 'ustaad gives the job back before arriving');
+  });
+  ok((await offersOf(j5)).find((f) => f.ustaad_id === u1)?.status === 'declined', 'it is not offered to them again');
+  await asUser(stranger, async () => {
+    await expectErr(`select assign_job($1, $2)`, 'only admins assign jobs', [j5, u4]);
+  });
+  await asUser(admin, async () => {
+    await expectErr(`select assign_job($1, $2)`, 'cannot assign to an ustaad without the trade', [j5, u3]);
+    ok((await db.query(`select status from assign_job($1, $2)`, [j5, u4])).rows[0].status === 'accepted', 'admin assigns the job');
+  });
+  ok(!(await openOffer(j5)), 'open offers closed when the job is assigned');
+  await asUser(u4, async () => {
+    await db.query(`select advance_job($1, 'on_the_way')`, [j5]);
+    await db.query(`select advance_job($1, 'arrived', 33.676, 73.015)`, [j5]);
+    await expectErr(`select cancel_job($1)`, 'ustaad cannot give back a job after arriving', [j5]);
+  });
+  await asUser(customer, async () => {
+    const msg = await expectErr(`select cancel_job($1)`, 'customer cannot cancel after the ustaad arrived', [j5]);
+    ok(msg?.includes('contact_support_to_cancel'), 'error is contact_support_to_cancel');
+  });
+  await asUser(admin, async () => {
+    await expectErr(`select cancel_job($1)`, 'admin cancel needs a reason', [j5]);
+    ok((await db.query(`select status from cancel_job($1, 'Customer not home')`, [j5])).rows[0].status === 'cancelled', 'admin cancels with a reason');
+    ok((await db.query(`select id from ustaad_jobs where customer_id = $1`, [customer])).rows.length === 6, 'admin sees all jobs');
+  });
+
+  // Account deletion
+  await asUser(customer, async () => {
+    j6 = (await book('plumber')).rows[0].id;
+  });
+  await asUser(u2, () => db.query(`select accept_job($1)`, [j6]));
+  await asUser(customer, async () => {
+    const blocked = await expectErr(`select delete_my_account()`, 'cannot delete an account with an active job');
+    ok(blocked?.includes('active_job'), 'error is active_job');
+  });
+  await asUser(u2, () => db.query(`select cancel_job($1)`, [j6]));
+  await asUser(customer, () => db.query(`select delete_my_account()`));
+  ok((await db.query(`select status from ustaad_jobs where id = $1`, [j6])).rows[0].status === 'cancelled', 'waiting job cancelled on deletion');
+  const kept = (await db.query(`select customer_id, address_text, status from ustaad_jobs where id = $1`, [j1])).rows[0];
+  ok(kept.customer_id === null && kept.address_text === 'Deleted account' && kept.status === 'completed', 'finished job kept without personal details');
+
+  await db.exec(`set role anon;`);
+  await expectErr(`select * from ustaad_jobs`, 'anon cannot read jobs');
+  await expectErr(`select my_job_offer()`, 'anon cannot check offers');
+  await db.exec(`reset role;`);
+  await db.exec(`update partners set is_online = false`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -656,10 +918,11 @@ console.log('\n== A. supabase/migrations');
   await checkPartners(db);
   await checkOrders(db);
   await checkSaudaLive(db);
+  await checkUstaad(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01..05 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..06 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -679,6 +942,7 @@ console.log('\n== B. SETUP_01..05 (each run twice, with an earlier signup)');
   await checkPartners(db);
   await checkOrders(db);
   await checkSaudaLive(db);
+  await checkUstaad(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

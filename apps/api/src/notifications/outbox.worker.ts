@@ -98,7 +98,8 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    const payload = { kind: row.kind, order_id: row.order_id ?? '' };
+    const jobId = typeof row.params?.job_id === 'string' ? row.params.job_id : '';
+    const payload = { kind: row.kind, order_id: row.order_id ?? '', job_id: jobId };
     let failure: string | null = null;
     for (const { token } of tokens as { token: string }[]) {
       const result = await this.fcm!.send(token, message, payload);

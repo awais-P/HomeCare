@@ -44,9 +44,6 @@ export default function HomeScreen() {
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? '';
   const otherPlaces = addresses.filter((a) => a.id !== selected?.id).slice(0, 2);
 
-  // Ustaad bookings arrive in Phase 5; until then that tile explains it's coming.
-  const comingSoon = () => Alert.alert(t('home.comingSoonTitle'), t('home.comingSoonBody'));
-
   const addAddress = () => {
     setLocationDraft(null);
     router.push('/address/pick');
@@ -151,8 +148,7 @@ export default function HomeScreen() {
               icon="construct"
               tint="ustaadSoft"
               color="ustaad"
-              badge={t('common.comingSoon')}
-              onPress={comingSoon}
+              onPress={() => router.push('/job/new')}
             />
           </View>
           <View style={[styles.gridRow, { flexDirection: row }]}>
