@@ -3,7 +3,7 @@ import { forwardRef, useImperativeHandle, useRef } from 'react';
 
 import { useColors, useColorSchemeName } from '../theme';
 
-import { MapPin } from './map-pin';
+import { MapPin, RiderBadge } from './map-pin';
 import { MAP_STYLES, STREET_ZOOM, type AppMapHandle, type AppMapProps } from './types';
 
 /**
@@ -11,7 +11,7 @@ import { MAP_STYLES, STREET_ZOOM, type AppMapHandle, type AppMapProps } from './
  * so the map provider can change later without touching them. Web version: app-map.web.tsx.
  */
 export const AppMap = forwardRef<AppMapHandle, AppMapProps>(function AppMap(
-  { initialCenter, initialZoom = STREET_ZOOM, zones, marker, showUserLocation, onPress, onMoveStart, onMoveEnd, bottomInset = 0, style },
+  { initialCenter, initialZoom = STREET_ZOOM, zones, marker, rider, showUserLocation, onPress, onMoveStart, onMoveEnd, bottomInset = 0, style },
   ref,
 ) {
   const cameraRef = useRef<CameraRef>(null);
@@ -64,6 +64,11 @@ export const AppMap = forwardRef<AppMapHandle, AppMapProps>(function AppMap(
       {marker ? (
         <Marker id="selected-address" lngLat={[marker.longitude, marker.latitude]} anchor="bottom">
           <MapPin />
+        </Marker>
+      ) : null}
+      {rider ? (
+        <Marker id="rider" lngLat={[rider.longitude, rider.latitude]} anchor="center">
+          <RiderBadge />
         </Marker>
       ) : null}
     </Map>

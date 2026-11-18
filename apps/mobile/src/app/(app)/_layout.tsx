@@ -1,10 +1,14 @@
 import { Stack } from 'expo-router';
 
+import { usePushNotifications } from '@homecare/shared/push';
+
 import { AddressesProvider } from '@/features/addresses/addresses-provider';
 
 export const unstable_settings = { anchor: '(tabs)' };
 
 export default function AppLayout() {
+  // Register this phone for order updates; a tapped notification opens that order.
+  usePushNotifications('customer', (data) => (data.order_id ? { pathname: '/order/[id]', params: { id: data.order_id } } : null));
   return (
     <AddressesProvider>
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>

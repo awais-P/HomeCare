@@ -137,7 +137,7 @@ paid geocoder later only touches `features/map/app-map.tsx` or `features/locatio
 - [x] CNIC front/back + selfie upload to a private storage bucket (own folder only; admins read all)
 - [x] Rider: vehicle type/number; payout number (JazzCash/Easypaisa) for later
 - [x] Status: draft → pending → approved / rejected (with reason) → suspended; enforced by database functions (tested)
-- [x] Online/offline toggle; location update every 20 s while online and the app is open
+- [x] Online/offline toggle; location update every 15 s while online and the app is open
 - [x] `apps/admin` (web): applications queue, document viewer, approve/reject/suspend, live map of online partners
 - [ ] Run `SETUP_03` on Supabase, add the first admin, test both apps on real phones
 - [ ] Background location while the phone is locked (with dispatch in P4/P6)
@@ -157,12 +157,18 @@ Slice 1 (done):
 - [x] Admin: orders list with history, assign to a rider (manual dispatch), cancel with reason; settings editor
 - [x] Account deletion in both apps; Terms of Service and Privacy Policy (draft) in the apps and on a public website
 
-Next slices:
-- [ ] Substitution messages ("no Olpers, get Nestle?") approved by the customer
-- [ ] Voice note for the list
-- [ ] Automatic one-by-one offers to the nearest rider with a timeout (NestJS), instead of first-come
-- [ ] NestJS deployed and verifying Supabase logins
-- [ ] Customer sees the rider moving on the map (with P6 realtime)
+Slice 2 (done, `SETUP_05`):
+- [x] Substitution questions from the shop ("no Olpers, get Nestle?" with optional price and photo); the customer answers yes/no; unanswered ones close as "no answer" when the rider leaves
+- [x] Voice note for the list (up to 2 minutes; the written list becomes optional)
+- [x] Automatic one-by-one offers to the nearest free online rider (30 s each, 3 riders), then the nearby list and "Needs a rider" in the admin panel. Built in the database (no server needed); a 10-second pg_cron timer when available
+- [x] Customer sees the rider on a map (location every 15 s) and updates arrive live (Supabase Realtime), with a 15 s refresh as backup
+- [x] Push notifications: phones register, the database queues messages, the API sends them through Firebase (needs a Firebase project; see `docs/PUSH_NOTIFICATIONS.md`)
+
+Next:
+- [ ] Run `SETUP_04` and `SETUP_05` on Supabase; build both APKs and run a test errand on two phones
+- [ ] Firebase project + host the API so push notifications reach phones
+- [ ] NestJS verifying Supabase logins (for future trusted endpoints)
+- [ ] Background location while the rider's phone is locked
 
 **Done when:** the team completes 10 test errands in the pilot sectors with real money and no manual database fixes.
 
@@ -176,9 +182,10 @@ Next slices:
 
 **Done when:** 10 test jobs go through visit → quote → approve → complete, including one warranty revisit.
 
-### P6 Realtime & notifications ⬜ (2 weeks)
-- [ ] Push notifications for every order/job status change (expo-notifications)
-- [ ] Live rider/ustaad location on the customer's map (Supabase Realtime)
+### P6 Realtime & notifications 🚧 (2 weeks)
+- [x] Push notifications for every Sauda Run status change (code done in P4 slice 2; needs Firebase + hosted API to go live)
+- [x] Rider location on the customer's map, live order updates (Supabase Realtime)
+- [ ] Same for Ustaad jobs (P5)
 - [ ] In-app chat per order
 - [ ] SMS fallback for job offers to partners with weak data
 

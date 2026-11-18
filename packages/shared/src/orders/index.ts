@@ -2,7 +2,7 @@ import type Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 
 import type { TranslationKey } from '../i18n';
-import type { OrderStatus, SaudaCategory } from '../lib/database.types';
+import type { OrderStatus, SaudaCategory, SubstitutionStatus } from '../lib/database.types';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -58,3 +58,12 @@ export const isOpen = (status: OrderStatus) => status !== 'delivered' && status 
 
 /** "1,200" — PKR amounts without decimals. */
 export const formatRupees = (amount: number) => amount.toLocaleString('en-PK', { maximumFractionDigits: 0 });
+
+export const SUBSTITUTION_STATUS_KEY: Record<SubstitutionStatus, TranslationKey> = {
+  pending: 'subs.status.pending',
+  approved: 'subs.status.approved',
+  declined: 'subs.status.declined',
+  no_reply: 'subs.status.no_reply',
+};
+
+export { useLiveChanges, useOrderLive } from './live';

@@ -19,7 +19,30 @@ export function MapPin({ lifted = false, icon = 'home' }: { lifted?: boolean; ic
 
 export const PIN_HEIGHT = 58;
 
+/** The rider on the map: a round bike badge. */
+export function RiderBadge() {
+  const colors = useColors();
+  return (
+    <View style={[styles.rider, { backgroundColor: colors.sauda, borderColor: colors.surface }]} pointerEvents="none">
+      <Ionicons name="bicycle" size={18} color={colors.onPrimary} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  rider: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
   wrap: { alignItems: 'center', height: PIN_HEIGHT, width: 44 },
   lifted: { transform: [{ translateY: -8 }] },
   head: {

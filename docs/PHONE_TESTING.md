@@ -1,0 +1,67 @@
+# Testing on phones (standalone APKs)
+
+We build **standalone release APKs** on the laptop with the Android SDK and copy them to phones.
+A release APK contains all the app code, so it runs anywhere with internet and talks to Supabase
+directly. (A dev build from `npm run android` instead loads its code from the laptop.)
+
+Two apps, two APKs; both can be installed on the same phone:
+
+| App | Package | Build command (repo root) | APK file afterwards |
+| --- | --- | --- | --- |
+| Customer | `pk.homecare.app` | `npm run apk` | `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` |
+| Partner | `pk.homecare.partner` | `npm run partner:apk` | `apps/partner/android/app/build/outputs/apk/release/app-release.apk` |
+
+## One-time laptop setup
+
+1. Install **Android Studio** (https://developer.android.com/studio). On first start let it
+   install the Android SDK, Platform-Tools and an SDK Platform.
+2. Set environment variables (Windows: *Edit the system environment variables*):
+   - `ANDROID_HOME` = `%LOCALAPPDATA%\Android\Sdk`
+   - add `%ANDROID_HOME%\platform-tools` to `Path`
+   - `JAVA_HOME` = the JDK 17 folder (already installed under `%LOCALAPPDATA%\Programs\Java`), or
+     Android Studio's own `jbr` folder.
+3. Open a new terminal and check: `adb --version` and `java -version` (17).
+
+## Before building
+
+- `apps/mobile/.env` and `apps/partner/.env` must have the Supabase URL and publishable key
+  (they are baked into the APK when it is built; change them → rebuild).
+- Optional, for push notifications: `google-services.json` in both app folders
+  (`docs/PUSH_NOTIFICATIONS.md`).
+- Supabase: run `SETUP_01` … `SETUP_05` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
+  yourself an admin.
+
+## Build and install
+
+```bash
+npm run apk
+npm run partner:apk
+```
+
+The first build takes 10–20 minutes (Gradle downloads); later ones a few minutes. If a phone is
+connected by USB with *USB debugging* on, the APK is also installed on it.
+
+Otherwise copy `app-release.apk` to the phone (USB, Google Drive, WhatsApp to yourself), open it,
+and allow *Install unknown apps* for the app you opened it from.
+
+These APKs are signed with the debug key: fine for testing, not for the Play Store (that needs an
+upload key, Phase 8).
+
+## A test errand on two phones
+
+1. Phone A: partner app → sign in with a test number → apply as a rider (documents) → admin panel
+   (`npm run admin` on the laptop) → approve → back on phone A go **Online**.
+2. Phone B: customer app → sign in with another test number → address inside a pilot zone →
+   **Sauda Run** → type a list or record a voice note → place the order.
+3. Phone A gets the offer within a few seconds (30 s to accept) → accept → **I'm at the shop** →
+   try **Item not available?** → phone B answers yes/no → bill amount + photo → on the way →
+   delivered.
+4. Phone B watches the status and the rider on the map, then rates the rider.
+
+Both phones need location on. The rider must be within 5 km of the delivery address
+(`dispatch_radius_km` in admin → Settings) for offers.
+
+## Not tested yet on real phones
+
+Native map (MapLibre), GPS, camera, microphone and notifications have only been checked in the
+browser preview and by the type checker. Expect small fixes after the first install.

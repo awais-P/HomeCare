@@ -1,4 +1,5 @@
-import { supabase, type Order, type OrderEvent, type SaudaCategory } from '@homecare/shared/lib';
+import type { Recording } from '@homecare/shared/audio';
+import { supabase, type Order, type OrderEvent, type SaudaCategory, type Substitution } from '@homecare/shared/lib';
 import { base64ToArrayBuffer, photoExtension, type PickedPhoto } from '@homecare/shared/media';
 
 const MEDIA = 'order-media';
@@ -10,16 +11,18 @@ export type NewOrder = {
   shopPreference?: string;
   instructions?: string;
   photoPaths?: string[];
+  voicePath?: string;
 };
 
 export async function createOrder(input: NewOrder): Promise<Order> {
-  const { data, error } = await supabase.rpc('create_sauda_order', {
+  const { data, error } = await supabase.rpc('place_sauda_order', {
     p_address_id: input.addressId,
     p_category: input.category,
     p_items_text: input.itemsText,
     p_shop_preference: input.shopPreference,
     p_instructions: input.instructions,
     p_photo_paths: input.photoPaths ?? [],
+    p_voice_path: input.voicePath,
   });
   if (error) throw error;
   return data;
@@ -67,6 +70,32 @@ export async function uploadListPhoto(userId: string, photo: PickedPhoto): Promi
   return path;
 }
 
+/** Uploads a recorded list to order-media/<user id>/voice-<random>.<ext>. */
+export async function uploadVoiceNote(userId: string, recording: Recording): Promise<string> {
+  const path = `${userId}/voice-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.${recording.extension}`;
+  const { error } = await supabase.storage.from(MEDIA).upload(path, recording.bytes, { contentType: recording.contentType });
+  if (error) throw error;
+  return path;
+}
+
+export async function listSubstitutions(orderId: string): Promise<Substitution[]> {
+  const { data, error } = await supabase.from('order_substitutions').select('*').eq('order_id', orderId).order('created_at');
+  if (error) throw error;
+  return data;
+}
+
+export async function answerSubstitution(id: string, approve: boolean): Promise<Substitution> {
+  const { data, error } = await supabase.rpc('answer_substitution', { p_substitution: id, p_approve: approve });
+  if (error) throw error;
+  return data;
+}
+
+/** Where the rider is (while the order is active), from their app's last location update. */
+export async function riderLocation(orderId: string) {
+  const { data } = await supabase.rpc('order_rider_location', { p_order: orderId });
+  return data?.[0] ?? null;
+}
+
 /** Short-lived links for private order photos (list photos, bill). */
 export async function photoUrls(paths: string[]): Promise<Record<string, string>> {
   if (!paths.length) return {};
@@ -92,6 +121,7 @@ export async function cancellationFee(): Promise<number> {
 /** Maps order errors from the database to message keys. */
 export function orderErrorKey(error: unknown) {
   const message = (error as { message?: string })?.message ?? '';
+  if (message.includes('list_required')) return 'order.new.itemsOrVoice' as const;
   if (message.includes('too_many_active_orders')) return 'order.errors.tooMany' as const;
   if (message.includes('outside_service_area')) return 'address.errors.outside' as const;
   if (message.includes('contact_support_to_cancel')) return 'order.detail.cancelSupport' as const;

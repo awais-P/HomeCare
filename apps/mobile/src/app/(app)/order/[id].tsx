@@ -1,21 +1,49 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { VoiceNotePlayer } from '@homecare/shared/audio';
 import { errorMessageKey } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
-import type { Order, OrderEvent } from '@homecare/shared/lib';
-import { CATEGORY_ICON, CATEGORY_KEY, formatRupees, ORDER_STEPS, STATUS_ICON, STATUS_KEY } from '@homecare/shared/orders';
+import type { Order, OrderEvent, Substitution } from '@homecare/shared/lib';
+import { AppMap } from '@homecare/shared/map';
+import {
+  ACTIVE_STATUSES,
+  CATEGORY_ICON,
+  CATEGORY_KEY,
+  formatRupees,
+  ORDER_STEPS,
+  STATUS_ICON,
+  STATUS_KEY,
+  SUBSTITUTION_STATUS_KEY,
+  useOrderLive,
+} from '@homecare/shared/orders';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
-import { AppText, BackHeader, Button, Card, Divider, IconCircle, InlineMessage, Screen } from '@homecare/shared/ui';
+import { AppText, BackHeader, Badge, Button, Card, Divider, IconCircle, InlineMessage, Screen } from '@homecare/shared/ui';
 
-import { cancelOrder, cancellationFee, getContact, getOrder, orderErrorKey, photoUrls, rateOrder } from '@/features/orders/api';
+import {
+  answerSubstitution,
+  cancelOrder,
+  cancellationFee,
+  getContact,
+  getOrder,
+  listSubstitutions,
+  orderErrorKey,
+  photoUrls,
+  rateOrder,
+  riderLocation,
+} from '@/features/orders/api';
 
+/** Backup refresh; changes normally arrive instantly through Realtime. */
 const REFRESH_MS = 15_000;
 
-/** One order: live status, list, address, payment, rider contact, cancel and rating. */
+type RiderSpot = { latitude: number; longitude: number; seen_at: string | null };
+
+const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit' });
+
+/** One order: live status, rider on the map, questions from the rider, list, payment, cancel and rating. */
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useI18n();
@@ -23,11 +51,15 @@ export default function OrderDetailScreen() {
   const row = useRowDirection();
   const [order, setOrder] = useState<Order | null>(null);
   const [events, setEvents] = useState<OrderEvent[]>([]);
+  const [subs, setSubs] = useState<Substitution[]>([]);
+  const [rider, setRider] = useState<RiderSpot | null>(null);
   const [contact, setContact] = useState<{ name: string | null; phone: string | null } | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [answering, setAnswering] = useState<string | null>(null);
   const [cancelFee, setCancelFee] = useState(0);
 
   useEffect(() => {
@@ -42,24 +74,31 @@ export default function OrderDetailScreen() {
 
   const [reloadToken, setReloadToken] = useState(0);
   const load = useCallback(() => setReloadToken((n) => n + 1), []);
+  useOrderLive(id ?? null, load);
 
-  // Status updates arrive by polling for now (realtime comes in Phase 6).
   useEffect(() => {
     let active = true;
     const fetchOrder = async () => {
       try {
-        const result = await getOrder(id);
+        const [result, nextSubs] = await Promise.all([getOrder(id), listSubstitutions(id)]);
         if (!active) return;
         setOrder(result.order);
         setEvents(result.events);
+        setSubs(nextSubs);
         setState('ready');
         if (result.order) {
           const o = result.order;
-          const nextContact = ['accepted', 'at_shop', 'on_the_way'].includes(o.status) ? await getContact(o.id) : null;
-          const paths = [...o.photo_paths, ...(o.bill_photo_path ? [o.bill_photo_path] : [])];
+          const live = ACTIVE_STATUSES.includes(o.status);
+          const [nextContact, nextRider] = live ? await Promise.all([getContact(o.id), riderLocation(o.id)]) : [null, null];
+          const paths = [
+            ...o.photo_paths,
+            ...(o.bill_photo_path ? [o.bill_photo_path] : []),
+            ...nextSubs.flatMap((s) => (s.photo_path ? [s.photo_path] : [])),
+          ];
           const nextUrls = paths.length ? await photoUrls(paths) : {};
           if (!active) return;
           setContact(nextContact);
+          setRider(nextRider);
           setUrls(nextUrls);
         }
       } catch {
@@ -73,6 +112,28 @@ export default function OrderDetailScreen() {
       clearInterval(timer);
     };
   }, [id, reloadToken]);
+
+  // The voice note gets its own link once, so playback isn't interrupted by the refreshes.
+  const voicePath = order?.voice_note_path ?? null;
+  useEffect(() => {
+    if (!voicePath) return;
+    let active = true;
+    photoUrls([voicePath]).then((map) => {
+      if (active) setVoiceUrl(map[voicePath] ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [voicePath]);
+
+  const riderPoint = useMemo(
+    () => (rider ? { latitude: rider.latitude, longitude: rider.longitude } : null),
+    [rider],
+  );
+  const home = useMemo(
+    () => (order ? { latitude: order.delivery_latitude, longitude: order.delivery_longitude } : null),
+    [order],
+  );
 
   if (state === 'loading' || !order) {
     return (
@@ -90,6 +151,8 @@ export default function OrderDetailScreen() {
   const stepIndex = ORDER_STEPS.indexOf(order.status);
   const fee = order.delivery_fee;
   const total = order.item_cost != null && fee != null ? order.item_cost + fee : null;
+  const pending = subs.filter((s) => s.status === 'pending');
+  const answered = subs.filter((s) => s.status !== 'pending');
 
   const confirmCancel = () => {
     if (order.status === 'at_shop' || order.status === 'on_the_way') {
@@ -128,9 +191,69 @@ export default function OrderDetailScreen() {
     }
   };
 
+  const answer = async (sub: Substitution, approve: boolean) => {
+    setAnswering(sub.id);
+    setMessage(null);
+    try {
+      const updated = await answerSubstitution(sub.id, approve);
+      setSubs((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    } catch {
+      setMessage(t('subs.answerFailed'));
+      load();
+    } finally {
+      setAnswering(null);
+    }
+  };
+
+  const question = (s: Substitution) =>
+    s.suggestion ? t('subs.askReplace', { item: s.item, suggestion: s.suggestion }) : t('subs.askSkip', { item: s.item });
+
   return (
     <Screen header={<BackHeader title={t('order.detail.title', { code: order.code })} />}>
       <View style={styles.content}>
+        {/* Questions from the rider: the most urgent thing on the screen */}
+        {pending.length ? (
+          <Card style={[styles.block, { borderColor: colors.sauda, borderWidth: 2 }]}>
+            <View style={[styles.rowCenter, { flexDirection: row }]}>
+              <Ionicons name="help-circle" size={22} color={colors.sauda} />
+              <AppText variant="heading">{t('subs.title')}</AppText>
+            </View>
+            {pending.map((s) => (
+              <View key={s.id} style={styles.question}>
+                <AppText variant="bodyStrong">{question(s)}</AppText>
+                {s.price != null ? (
+                  <AppText variant="caption" color="textMuted">
+                    {t('subs.price', { price: formatRupees(s.price) })}
+                  </AppText>
+                ) : null}
+                {s.photo_path && urls[s.photo_path] ? (
+                  <Image source={{ uri: urls[s.photo_path] }} style={[styles.subPhoto, { borderColor: colors.border }]} contentFit="cover" />
+                ) : null}
+                <View style={[styles.answers, { flexDirection: row }]}>
+                  <Button
+                    style={styles.flex}
+                    label={t('subs.no')}
+                    icon="close"
+                    variant="outline"
+                    size="md"
+                    disabled={answering !== null}
+                    onPress={() => void answer(s, false)}
+                  />
+                  <Button
+                    style={styles.flex}
+                    label={t('subs.yes')}
+                    icon="checkmark"
+                    size="md"
+                    loading={answering === s.id}
+                    disabled={answering !== null}
+                    onPress={() => void answer(s, true)}
+                  />
+                </View>
+              </View>
+            ))}
+          </Card>
+        ) : null}
+
         {/* Status */}
         <Card style={styles.statusCard}>
           <View style={[styles.rowCenter, { flexDirection: row }]}>
@@ -143,7 +266,9 @@ export default function OrderDetailScreen() {
             <View style={styles.flex}>
               <AppText variant="heading">{t(STATUS_KEY[order.status])}</AppText>
               <AppText variant="caption" color="textMuted">
-                {t('order.detail.updates')}
+                {order.status === 'requested'
+                  ? t(order.dispatch_gave_up_at ? 'order.detail.needsRider' : 'order.detail.searching')
+                  : t('order.detail.updates')}
               </AppText>
             </View>
           </View>
@@ -151,16 +276,16 @@ export default function OrderDetailScreen() {
             <View style={styles.steps}>
               {ORDER_STEPS.map((step, i) => {
                 const done = i <= stepIndex;
-                const at = events.find((e) => e.to_status === step)?.created_at;
+                const at = events.findLast((e) => e.to_status === step)?.created_at;
                 return (
                   <View key={step} style={[styles.rowCenter, { flexDirection: row }]}>
                     <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={done ? colors.success : colors.textSubtle} />
                     <AppText variant="caption" color={done ? 'text' : 'textSubtle'} style={styles.flex}>
                       {t(STATUS_KEY[step])}
                     </AppText>
-                    {at ? (
+                    {at && done ? (
                       <AppText variant="small" color="textSubtle">
-                        {new Date(at).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit' })}
+                        {timeOf(at)}
                       </AppText>
                     ) : null}
                   </View>
@@ -173,6 +298,30 @@ export default function OrderDetailScreen() {
             </AppText>
           ) : null}
         </Card>
+
+        {/* Rider on the map */}
+        {riderPoint && home ? (
+          <Card style={styles.mapCard}>
+            <AppMap
+              key={order.rider_id ?? 'rider'}
+              initialCenter={riderPoint}
+              initialZoom={14}
+              marker={home}
+              rider={riderPoint}
+              style={styles.map}
+            />
+            <View style={[styles.mapCaption, { flexDirection: row }]}>
+              <AppText variant="label" style={styles.flex}>
+                {t('order.detail.riderMap')}
+              </AppText>
+              {rider?.seen_at ? (
+                <AppText variant="small" color="textMuted">
+                  {t('order.detail.riderSeen', { time: timeOf(rider.seen_at) })}
+                </AppText>
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
 
         {/* Rider contact */}
         {contact?.phone ? (
@@ -196,13 +345,27 @@ export default function OrderDetailScreen() {
               {t(CATEGORY_KEY[order.category])} · {t('order.detail.items')}
             </AppText>
           </View>
-          <AppText>{order.items_text}</AppText>
+          {order.voice_note_path ? <VoiceNotePlayer uri={voiceUrl} /> : null}
+          {!(order.voice_note_path && order.items_text === 'Voice note') ? <AppText>{order.items_text}</AppText> : null}
           {order.photo_paths.length ? (
             <View style={[styles.photos, { flexDirection: row }]}>
               {order.photo_paths.map((p) =>
                 urls[p] ? <Image key={p} source={{ uri: urls[p] }} style={styles.photo} contentFit="cover" /> : null,
               )}
             </View>
+          ) : null}
+          {answered.length ? (
+            <>
+              <Divider />
+              {answered.map((s) => (
+                <View key={s.id} style={[styles.rowCenter, { flexDirection: row }]}>
+                  <AppText variant="caption" style={styles.flex}>
+                    {question(s)}
+                  </AppText>
+                  <Badge label={t(SUBSTITUTION_STATUS_KEY[s.status])} tone={s.status === 'approved' ? 'primary' : s.status === 'declined' ? 'danger' : 'sauda'} />
+                </View>
+              ))}
+            </>
           ) : null}
           <Divider />
           <AppText variant="caption" color="textMuted">
@@ -290,6 +453,12 @@ const styles = StyleSheet.create({
   rowCenter: { alignItems: 'center', gap: spacing.md },
   steps: { gap: spacing.sm },
   block: { gap: spacing.sm },
+  question: { gap: spacing.sm, paddingTop: spacing.xs },
+  answers: { gap: spacing.sm },
+  subPhoto: { width: '100%', height: 140, borderRadius: radius.md, borderWidth: 1 },
+  mapCard: { padding: 0, overflow: 'hidden' },
+  map: { height: 200 },
+  mapCaption: { alignItems: 'center', gap: spacing.sm, padding: spacing.md },
   photos: { flexWrap: 'wrap', gap: spacing.sm },
   photo: { width: 72, height: 72, borderRadius: radius.md },
   payRow: { alignItems: 'center', gap: spacing.md },

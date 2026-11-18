@@ -50,6 +50,19 @@
           "cameraPermission": "HomeCare uses the camera to photograph your shopping list.",
           "photosPermission": "HomeCare lets you attach photos of your shopping list from your gallery."
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "HomeCare uses the microphone to record your shopping list as a voice note."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0B7A55",
+          "defaultChannel": "orders"
+        }
       ]
     ],
     "experiments": {

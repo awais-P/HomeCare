@@ -1,33 +1,40 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useI18n, useRowDirection, type TranslationKey } from '@homecare/shared/i18n';
-import type { OpenOrder, Order, Partner } from '@homecare/shared/lib';
+import type { OpenOrder, Order, Partner, RiderOffer } from '@homecare/shared/lib';
 import { getDeviceLocation } from '@homecare/shared/location';
-import { CATEGORY_ICON, CATEGORY_KEY, STATUS_KEY } from '@homecare/shared/orders';
+import { CATEGORY_ICON, CATEGORY_KEY, STATUS_KEY, useLiveChanges } from '@homecare/shared/orders';
 import { spacing, useColors } from '@homecare/shared/theme';
 import { AppText, Badge, Button, Card, IconCircle, InlineMessage } from '@homecare/shared/ui';
 
-import { acceptOrder, listOpenOrders, myActiveOrder } from './jobs';
+import { acceptOrder, listOpenOrders, myActiveOrder, myOffer, respondOffer } from './jobs';
+import { OfferCard } from './offer-card';
 
-const REFRESH_MS = 15_000;
+/** Offers last 30 s, so check often; new offers normally arrive instantly through Realtime. */
+const REFRESH_MS = 10_000;
 
 /**
- * Rider's jobs: the order in progress if there is one, otherwise open orders nearby
- * (first rider to accept gets it). Refreshes every 15 seconds while online.
+ * Rider's jobs: the order in progress if there is one; otherwise an automatic offer (nearest
+ * rider first, a few seconds to accept) and the open orders nearby (first to accept gets it).
  */
 export function JobsPanel({ partner, online }: { partner: Partner; online: boolean }) {
   const { t } = useI18n();
   const colors = useColors();
   const row = useRowDirection();
   const [active, setActive] = useState<Order | null>(null);
+  const [offer, setOffer] = useState<{ offer: RiderOffer; deadline: number } | null>(null);
   const [open, setOpen] = useState<OpenOrder[]>([]);
   const [message, setMessage] = useState<TranslationKey | null>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
+  const [answering, setAnswering] = useState<'accept' | 'decline' | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const isRider = partner.role === 'rider';
+  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
+
+  useLiveChanges(isRider && online ? `offers-${partner.id}` : null, [{ table: 'order_offers', filter: `rider_id=eq.${partner.id}` }], reload);
 
   useEffect(() => {
     if (!isRider) return;
@@ -38,15 +45,23 @@ export function JobsPanel({ partner, online }: { partner: Partner; online: boole
         if (!alive) return;
         setActive(current);
         if (current || !online) {
+          setOffer(null);
           setOpen([]);
           return;
         }
+        const nextOffer = await myOffer();
+        if (!alive) return;
+        setOffer((prev) =>
+          nextOffer
+            ? { offer: nextOffer, deadline: prev?.offer.offer_id === nextOffer.offer_id ? prev.deadline : Date.now() + nextOffer.seconds_left * 1000 }
+            : null,
+        );
         const location = await getDeviceLocation();
         if (location.status !== 'ok') return;
         const orders = await listOpenOrders(location.coordinate.latitude, location.coordinate.longitude);
-        if (alive) setOpen(orders);
+        if (alive) setOpen(orders.filter((o) => o.id !== nextOffer?.order_id));
       } catch {
-        // Network hiccup: keep showing the last list.
+        // Network hiccup: keep showing the last state.
       }
     };
     void refresh();
@@ -66,11 +81,35 @@ export function JobsPanel({ partner, online }: { partner: Partner; online: boole
     } catch (e) {
       const msg = (e as { message?: string }).message ?? '';
       setMessage(msg.includes('rider_busy') ? 'jobs.busy' : 'jobs.taken');
-      setReloadToken((n) => n + 1);
+      reload();
     } finally {
       setAccepting(null);
     }
   };
+
+  const answerOffer = async (yes: boolean) => {
+    if (!offer) return;
+    setAnswering(yes ? 'accept' : 'decline');
+    setMessage(null);
+    try {
+      const order = await respondOffer(offer.offer.offer_id, yes);
+      setOffer(null);
+      if (order) router.push({ pathname: '/job/[id]', params: { id: order.id } });
+    } catch (e) {
+      const msg = (e as { message?: string }).message ?? '';
+      setOffer(null);
+      setMessage(msg.includes('rider_busy') ? 'jobs.busy' : msg.includes('offer_expired') ? 'offer.expired' : 'jobs.taken');
+    } finally {
+      setAnswering(null);
+      reload();
+    }
+  };
+
+  const expireOffer = useCallback(() => {
+    setOffer(null);
+    setMessage('offer.expired');
+    reload();
+  }, [reload]);
 
   if (!isRider) {
     return <InlineMessage tone="info" message={t('jobs.ustaadSoon')} />;
@@ -87,7 +126,7 @@ export function JobsPanel({ partner, online }: { partner: Partner; online: boole
             {t('job.title')} · {active.code}
           </AppText>
           <AppText variant="bodyStrong" numberOfLines={1}>
-            {active.items_text}
+            {active.voice_note_path && active.items_text === 'Voice note' ? t('voice.note') : active.items_text}
           </AppText>
           <Badge label={t(STATUS_KEY[active.status])} tone="sauda" />
         </View>
@@ -98,6 +137,16 @@ export function JobsPanel({ partner, online }: { partner: Partner; online: boole
 
   return (
     <View style={styles.list}>
+      {offer ? (
+        <OfferCard
+          offer={offer.offer}
+          deadline={offer.deadline}
+          busy={answering}
+          onAccept={() => void answerOffer(true)}
+          onDecline={() => void answerOffer(false)}
+          onExpire={expireOffer}
+        />
+      ) : null}
       <AppText variant="heading">{t('jobs.title')}</AppText>
       {!online ? (
         <AppText variant="caption" color="textMuted">
@@ -123,13 +172,20 @@ export function JobsPanel({ partner, online }: { partner: Partner; online: boole
               {t('jobs.fee', { fee: job.estimated_fee })}
             </AppText>
           </View>
-          <AppText numberOfLines={3}>{job.items_text}</AppText>
+          <AppText numberOfLines={3}>{job.items_text === 'Voice note' ? t('voice.note') : job.items_text}</AppText>
           {job.shop_preference ? (
             <AppText variant="caption" color="textMuted">
               {t('order.detail.shop')}: {job.shop_preference}
             </AppText>
           ) : null}
-          <Button label={t('jobs.accept')} icon="checkmark-circle-outline" size="md" loading={accepting === job.id} disabled={accepting !== null} onPress={() => void accept(job.id)} />
+          <Button
+            label={t('jobs.accept')}
+            icon="checkmark-circle-outline"
+            size="md"
+            loading={accepting === job.id}
+            disabled={accepting !== null || answering !== null}
+            onPress={() => void accept(job.id)}
+          />
         </Card>
       ))}
     </View>

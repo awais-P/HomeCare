@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { Order, OrderEvent, OrderStatus } from '@homecare/shared/db-types';
+import type { Offer, Order, OrderEvent, OrderStatus, Substitution } from '@homecare/shared/db-types';
 import { formatE164ForDisplay } from '@homecare/shared/phone';
 
 import { errorText } from './api';
@@ -23,9 +23,24 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 const FILTERS: { id: string; label: string; statuses: OrderStatus[] }[] = [
   { id: 'open', label: 'Open', statuses: ['requested', 'accepted', 'at_shop', 'on_the_way'] },
   { id: 'waiting', label: 'Waiting for rider', statuses: ['requested'] },
+  { id: 'needs', label: 'Needs a rider', statuses: ['requested'] },
   { id: 'done', label: 'Finished', statuses: ['delivered', 'cancelled'] },
 ];
 const REFRESH_MS = 15_000;
+const OFFER_LABEL: Record<Offer['status'], string> = {
+  offered: 'Offered now',
+  accepted: 'Accepted',
+  declined: 'Skipped',
+  expired: 'No answer',
+  withdrawn: 'Closed',
+};
+const SUB_LABEL: Record<Substitution['status'], string> = {
+  pending: 'Waiting',
+  approved: 'Yes',
+  declined: 'No',
+  no_reply: 'No answer',
+};
+type OfferRow = Offer & { partners: { profiles: { full_name: string | null } | null } | null };
 const rs = (n: number | null | undefined) => (n == null ? '—' : `Rs ${n.toLocaleString('en-PK')}`);
 
 export function OrdersView() {
@@ -46,10 +61,11 @@ export function OrdersView() {
         .order('created_at', { ascending: false })
         .limit(100);
       if (!active) return;
+      const list = (data as unknown as OrderRow[] | null) ?? [];
       if (e) setError(errorText(e));
       else {
         setError(null);
-        setRows(data as unknown as OrderRow[]);
+        setRows(filter.id === 'needs' ? list.filter((o) => o.dispatch_gave_up_at) : list);
       }
     };
     void load();
@@ -78,12 +94,15 @@ export function OrdersView() {
             </button>
           ))}
         </div>
-        <p className="muted small">Updates every 15 s.</p>
+        <p className="muted small">
+          Updates every 15 s. New orders are offered to the nearest free rider automatically; &quot;Needs a rider&quot; means those offers ran out.
+        </p>
         {error ? <p className="error">{error}</p> : null}
         {rows.length === 0 && !error ? <p className="muted">No orders here.</p> : null}
         {rows.map((o) => (
           <button key={o.id} className={`row ${o.id === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(o.id)}>
             <span className={`pill order-${o.status}`}>{STATUS_LABEL[o.status]}</span>
+            {o.status === 'requested' && o.dispatch_gave_up_at ? <span className="pill order-cancelled">Needs a rider</span> : null}
             <span className="row-main">
               <strong>
                 {o.code} · {o.category.replace('_', ' ')}
@@ -106,6 +125,9 @@ export function OrdersView() {
 
 function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => void }) {
   const [events, setEvents] = useState<OrderEvent[]>([]);
+  const [offers, setOffers] = useState<OfferRow[]>([]);
+  const [subs, setSubs] = useState<Substitution[]>([]);
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
   const [riders, setRiders] = useState<RiderOption[]>([]);
   const [riderId, setRiderId] = useState('');
   const [reason, setReason] = useState('');
@@ -122,6 +144,30 @@ function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => v
       .then(({ data }) => {
         if (active) setEvents(data ?? []);
       });
+    supabase
+      .from('order_offers')
+      .select('*, partners(profiles(full_name))')
+      .eq('order_id', order.id)
+      .order('offered_at')
+      .then(({ data }) => {
+        if (active) setOffers((data as unknown as OfferRow[]) ?? []);
+      });
+    supabase
+      .from('order_substitutions')
+      .select('*')
+      .eq('order_id', order.id)
+      .order('created_at')
+      .then(({ data }) => {
+        if (active) setSubs(data ?? []);
+      });
+    if (order.voice_note_path) {
+      supabase.storage
+        .from('order-media')
+        .createSignedUrl(order.voice_note_path, 600)
+        .then(({ data }) => {
+          if (active) setVoiceUrl(data?.signedUrl ?? null);
+        });
+    }
     if (order.status === 'requested') {
       supabase
         .from('partners')
@@ -136,7 +182,7 @@ function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => v
     return () => {
       active = false;
     };
-  }, [order.id, order.status]);
+  }, [order.id, order.status, order.voice_note_path, order.updated_at]);
 
   const act = async (fn: () => PromiseLike<{ error: unknown }>) => {
     setBusy(true);
@@ -164,7 +210,15 @@ function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => v
         <dt>Deliver to</dt>
         <dd>{order.delivery_text}</dd>
         <dt>Items</dt>
-        <dd style={{ whiteSpace: 'pre-wrap' }}>{order.items_text}</dd>
+        <dd style={{ whiteSpace: 'pre-wrap' }}>
+          {order.items_text}
+          {voiceUrl ? (
+            <>
+              <br />
+              <audio controls src={voiceUrl} preload="none" />
+            </>
+          ) : null}
+        </dd>
         <dt>Shop</dt>
         <dd>{order.shop_preference ?? 'Nearest'}</dd>
         <dt>Rider</dt>
@@ -190,6 +244,37 @@ function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => v
           </>
         ) : null}
       </dl>
+
+      {subs.length ? (
+        <>
+          <h3>Questions to the customer</h3>
+          <ul className="timeline">
+            {subs.map((s) => (
+              <li key={s.id}>
+                {s.item} → {s.suggestion ?? 'skip it'}
+                {s.price != null ? ` (${rs(s.price)})` : ''} <span className="muted">— {SUB_LABEL[s.status]}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      {offers.length ? (
+        <>
+          <h3>Automatic offers</h3>
+          <ul className="timeline">
+            {offers.map((o) => (
+              <li key={o.id}>
+                <span className="muted small">
+                  {new Date(o.offered_at).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+                </span>{' '}
+                {o.partners?.profiles?.full_name ?? 'Rider'}
+                {o.distance_km != null ? ` · ${o.distance_km} km` : ''} <span className="muted">— {OFFER_LABEL[o.status]}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
 
       <h3>History</h3>
       <ul className="timeline">

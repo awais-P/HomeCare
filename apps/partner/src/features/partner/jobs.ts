@@ -1,4 +1,4 @@
-import { supabase, type OpenOrder, type Order, type OrderStatus } from '@homecare/shared/lib';
+import { supabase, type OpenOrder, type Order, type OrderStatus, type RiderOffer, type Substitution } from '@homecare/shared/lib';
 import { base64ToArrayBuffer, photoExtension, type PickedPhoto } from '@homecare/shared/media';
 
 export async function listOpenOrders(lat: number, lng: number): Promise<OpenOrder[]> {
@@ -74,4 +74,62 @@ export async function uploadBill(orderId: string, photo: PickedPhoto): Promise<s
 export async function cashLimit(): Promise<number> {
   const { data } = await supabase.from('app_settings').select('value').eq('key', 'rider_cash_limit').maybeSingle();
   return Number(data?.value ?? 5000);
+}
+
+/** The automatic offer waiting for this rider, if any (also moves expired offers on). */
+export async function myOffer(): Promise<RiderOffer | null> {
+  const { data, error } = await supabase.rpc('my_offer');
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
+/** Accept (returns the order, now yours) or skip (returns null) an automatic offer. */
+export async function respondOffer(offerId: string, accept: boolean): Promise<Order | null> {
+  const { data, error } = await supabase.rpc('respond_offer', { p_offer: offerId, p_accept: accept });
+  if (error) throw error;
+  return data;
+}
+
+export async function listSubstitutions(orderId: string): Promise<Substitution[]> {
+  const { data, error } = await supabase.from('order_substitutions').select('*').eq('order_id', orderId).order('created_at');
+  if (error) throw error;
+  return data;
+}
+
+export async function requestSubstitution(input: {
+  orderId: string;
+  item: string;
+  suggestion?: string;
+  price?: number;
+  photoPath?: string;
+}): Promise<Substitution> {
+  const { data, error } = await supabase.rpc('request_substitution', {
+    p_order: input.orderId,
+    p_item: input.item,
+    p_suggestion: input.suggestion,
+    p_price: input.price,
+    p_photo_path: input.photoPath,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Uploads a photo of the item / alternative to order-media/subs/<order id>/<random>.<ext>. */
+export async function uploadSubstitutionPhoto(orderId: string, photo: PickedPhoto): Promise<string> {
+  const name = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const path = 'subs/' + orderId + '/' + name + '.' + photoExtension(photo.mimeType);
+  const { error } = await supabase.storage
+    .from('order-media')
+    .upload(path, base64ToArrayBuffer(photo.base64), { contentType: photo.mimeType });
+  if (error) throw error;
+  return path;
+}
+
+/** Short-lived links for private order files (voice note, substitution photos). */
+export async function fileUrls(paths: string[]): Promise<Record<string, string>> {
+  if (!paths.length) return {};
+  const { data } = await supabase.storage.from('order-media').createSignedUrls(paths, 600);
+  const out: Record<string, string> = {};
+  for (const item of data ?? []) if (item.path && item.signedUrl) out[item.path] = item.signedUrl;
+  return out;
 }

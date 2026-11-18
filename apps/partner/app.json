@@ -50,6 +50,20 @@
           "cameraPermission": "HomeCare Partner uses the camera to photograph your CNIC and take a verification selfie.",
           "photosPermission": "HomeCare Partner lets you choose CNIC photos from your gallery."
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0B7A55",
+          "defaultChannel": "orders"
+        }
       ]
     ],
     "experiments": {

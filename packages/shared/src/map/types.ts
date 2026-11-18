@@ -14,6 +14,8 @@ export type AppMapProps = {
   zones?: GeoJSON.FeatureCollection | null;
   /** A pin fixed to a place on the map (e.g. the selected delivery address). */
   marker?: LatLng | null;
+  /** The rider on their way (a round bike badge), e.g. on the order screen. */
+  rider?: LatLng | null;
   /** Shows the blue "you are here" dot (needs location permission). */
   showUserLocation?: boolean;
   /** Tap on the map (not a drag). */

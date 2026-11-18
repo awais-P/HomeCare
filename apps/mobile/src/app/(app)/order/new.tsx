@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
+import { readRecording, useVoiceRecorder } from '@homecare/shared/audio';
 import { errorMessageKey, useAuth } from '@homecare/shared/auth';
 import { useI18n, useRowDirection, type TranslationKey } from '@homecare/shared/i18n';
 import type { SaudaCategory } from '@homecare/shared/lib';
@@ -14,7 +15,8 @@ import { AppText, BackHeader, Button, Card, ChoiceChips, IconCircle, InlineMessa
 
 import { useAddresses } from '@/features/addresses/addresses-provider';
 import { addressSummary, addressTitle, LABEL_ICON } from '@/features/addresses/labels';
-import { baseDeliveryFee, createOrder, orderErrorKey, uploadListPhoto } from '@/features/orders/api';
+import { baseDeliveryFee, createOrder, orderErrorKey, uploadListPhoto, uploadVoiceNote } from '@/features/orders/api';
+import { VoiceRecorderCard } from '@/features/orders/voice-recorder-card';
 
 const MAX_PHOTOS = 4;
 
@@ -39,6 +41,7 @@ export default function NewOrderScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<TranslationKey | null>(null);
+  const voice = useVoiceRecorder();
 
   useEffect(() => {
     let active = true;
@@ -50,7 +53,8 @@ export default function NewOrderScreen() {
     };
   }, []);
 
-  const itemsMissing = items.trim().length < 2;
+  // A voice note can replace the written list.
+  const itemsMissing = items.trim().length < 2 && !voice.uri;
 
   const addPhoto = () => {
     const choose = async (source: 'camera' | 'library') => {
@@ -77,9 +81,18 @@ export default function NewOrderScreen() {
   const place = async () => {
     setSubmitted(true);
     setError(null);
-    if (itemsMissing || !selected) return;
+    if (itemsMissing || !selected || !session || voice.recording) return;
     setPlacing(true);
     try {
+      let voicePath: string | undefined;
+      if (voice.uri) {
+        try {
+          voicePath = await uploadVoiceNote(session.user.id, await readRecording(voice.uri));
+        } catch {
+          setError('voice.uploadFailed');
+          return;
+        }
+      }
       const order = await createOrder({
         addressId: selected.id,
         category,
@@ -87,6 +100,7 @@ export default function NewOrderScreen() {
         shopPreference: shop,
         instructions,
         photoPaths: photos.map((p) => p.path),
+        voicePath,
       });
       router.replace({ pathname: '/order/[id]', params: { id: order.id } });
     } catch (e) {
@@ -104,7 +118,7 @@ export default function NewOrderScreen() {
           label={t('order.new.place')}
           icon="bag-check-outline"
           loading={placing}
-          disabled={uploading || !selected}
+          disabled={uploading || !selected || voice.recording}
           onPress={() => void place()}
         />
       }>
@@ -128,8 +142,10 @@ export default function NewOrderScreen() {
           multiline
           maxLength={2000}
           style={styles.multiline}
-          error={submitted && itemsMissing ? t('order.new.itemsRequired') : null}
+          error={submitted && itemsMissing ? t('order.new.itemsOrVoice') : null}
         />
+
+        <VoiceRecorderCard recorder={voice} disabled={placing} />
 
         <View style={styles.group}>
           <AppText variant="label" color="textMuted">

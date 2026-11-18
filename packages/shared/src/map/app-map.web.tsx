@@ -13,7 +13,7 @@ import { MAP_STYLES, STREET_ZOOM, type AppMapHandle, type AppMapProps } from './
  * without a phone. Same props and behaviour as the native app-map.tsx.
  */
 export const AppMap = forwardRef<AppMapHandle, AppMapProps>(function AppMap(
-  { initialCenter, initialZoom = STREET_ZOOM, zones, marker, showUserLocation, onPress, onMoveStart, onMoveEnd, bottomInset = 0, style },
+  { initialCenter, initialZoom = STREET_ZOOM, zones, marker, rider, showUserLocation, onPress, onMoveStart, onMoveEnd, bottomInset = 0, style },
   ref,
 ) {
   const containerRef = useRef<ComponentRef<typeof View>>(null);
@@ -117,6 +117,21 @@ export const AppMap = forwardRef<AppMapHandle, AppMapProps>(function AppMap(
       pin.remove();
     };
   }, [marker, colors.primary]);
+
+  // The rider's position (a round bike badge).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !rider) return;
+    const element = document.createElement('div');
+    element.style.cssText =
+      `width:34px;height:34px;border-radius:17px;background:${colors.sauda};border:3px solid ${colors.surface};` +
+      'box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:17px;';
+    element.textContent = '🛵';
+    const badge = new maplibregl.Marker({ element, anchor: 'center' }).setLngLat([rider.longitude, rider.latitude]).addTo(map);
+    return () => {
+      badge.remove();
+    };
+  }, [rider, colors.sauda, colors.surface]);
 
   // maplibre-gl's CSS makes its container `position: relative`, which would override an absolute
   // `style` from the screen, so the map gets its own inner view.

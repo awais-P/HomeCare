@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01..04, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..05, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -467,6 +467,183 @@ async function checkOrders(db) {
   await db.exec(`reset role;`);
 }
 
+// ----------------------------------------------------------------------- P4 slice 2: offers, voice, substitutions, tracking, push
+async function checkSaudaLive(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  // Riders left online by earlier checks would take part in dispatch: switch everyone off first.
+  await db.exec(`update partners set is_online = false`);
+  const customer = await newUser('923040000001');
+  const r1 = await newUser('923040000002'); // nearest
+  const r2 = await newUser('923040000003'); // a bit farther
+  const r3 = await newUser('923040000004'); // offline
+  const stranger = await newUser('923040000005');
+  const spots = [[r1, 33.6762, 73.0152, true], [r2, 33.69, 73.03, true], [r3, 33.676, 73.015, false]];
+  for (const [id, lat, lng, online] of spots) {
+    await db.query(`insert into partners (id, role, status, is_online, last_latitude, last_longitude, last_seen_at)
+                    values ($1, 'rider', 'approved', $2, $3, $4, now())`, [id, online, lat, lng]);
+  }
+  const offersOf = async (orderId) =>
+    (await db.query(`select rider_id, status from order_offers where order_id = $1 order by offered_at, status`, [orderId])).rows;
+  const outbox = async (userId) => (await db.query(`select kind, params from notification_outbox where user_id = $1 order by id`, [userId])).rows;
+
+  // Push tokens
+  await db.exec(`set role anon;`);
+  await expectErr(`select register_push_token('anon-token-123456', 'customer', 'android')`, 'anon cannot register a push token');
+  await db.exec(`reset role;`);
+  await asUser(customer, async () => {
+    await db.query(`select register_push_token('customer-token-0001', 'customer', 'android')`);
+    await db.query(`select register_push_token('customer-token-0001', 'customer', 'android')`);
+    await expectErr(`select * from push_tokens`, 'apps cannot read push tokens directly');
+    await expectErr(`select * from notification_outbox`, 'apps cannot read the notification queue');
+    await expectErr(`select register_push_token('x', 'customer', 'android')`, 'too-short token rejected');
+  });
+  for (const r of [r1, r2]) await asUser(r, () => db.query(`select register_push_token($1, 'partner', 'android')`, [`rider-token-${r}`]));
+  ok((await db.query(`select count(*)::int n from push_tokens`)).rows[0].n >= 3, 'push tokens saved (re-registering does not duplicate)');
+
+  // Voice-note order -> automatic offer to the nearest rider
+  let o1, o2, addressId;
+  const voice = `${customer}/voice-abc123.m4a`;
+  await asUser(customer, async () => {
+    addressId = (await db.query(`insert into addresses (latitude, longitude, formatted_address)
+      values (33.676, 73.015, 'Street 3, G-10/4, Islamabad') returning id`)).rows[0].id;
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [voice]);
+    await expectErr(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`,
+      "cannot upload a voice note into someone else's folder", [`${stranger}/voice-x.m4a`]);
+    const noList = await expectErr(`select place_sauda_order($1, 'grocery', '  ')`, 'order without a list or voice note refused', [addressId]);
+    ok(noList?.includes('list_required'), 'error is list_required');
+    await expectErr(`select place_sauda_order($1, 'grocery', '', null, null, '{}', $2)`, "someone else's voice note refused",
+      [addressId, `${stranger}/voice-x.m4a`]);
+    const o = (await db.query(`select * from place_sauda_order($1, 'grocery', '', null, null, '{}', $2)`, [addressId, voice])).rows[0];
+    o1 = o.id;
+    ok(o.voice_note_path === voice && o.items_text === 'Voice note' && o.status === 'requested', 'voice-only order placed');
+    ok((await db.query(`select * from order_offers`)).rows.length === 0, 'customers cannot see offers');
+    await expectErr(`select dispatch_pending()`, 'apps cannot run dispatch directly');
+  });
+  let offers = await offersOf(o1);
+  ok(offers.length === 1 && offers[0].rider_id === r1 && offers[0].status === 'offered', 'new order offered to the nearest online rider');
+  ok((await outbox(r1)).some((n) => n.kind === 'new_offer'), 'rider gets a new-offer notification');
+
+  await asUser(r1, async () => {
+    const mine = (await db.query(`select * from my_offer()`)).rows;
+    ok(mine.length === 1 && mine[0].order_id === o1 && mine[0].voice_note_path === voice && mine[0].seconds_left > 20
+      && !('delivery_text' in mine[0]), 'rider sees the offer (voice note, countdown, no address)');
+    ok((await db.query(`select name from storage.objects where name = $1`, [voice])).rows.length === 1, 'offered rider can play the voice note');
+    ok((await db.query(`select * from order_offers`)).rows.length === 1, 'rider sees own offer');
+    ok((await db.query(`select respond_offer($1, false) r`, [mine[0].offer_id])).rows[0].r === null, 'rider declines the offer');
+    await expectErr(`select respond_offer($1, true)`, 'cannot accept a declined offer', [mine[0].offer_id]);
+  });
+  offers = await offersOf(o1);
+  ok(offers.find((f) => f.rider_id === r1)?.status === 'declined' && offers.find((f) => f.rider_id === r2)?.status === 'offered',
+    'declined offer goes straight to the next nearest rider');
+  await asUser(r1, async () => {
+    ok((await db.query(`select * from my_offer()`)).rows.length === 0, 'rider who declined is not offered it again');
+    ok((await db.query(`select name from storage.objects where name = $1`, [voice])).rows.length === 0, 'voice note hidden after declining');
+  });
+  await asUser(stranger, async () => {
+    ok((await db.query(`select name from storage.objects where name = $1`, [voice])).rows.length === 0, 'others cannot play the voice note');
+  });
+
+  // Offer runs out; offers used up -> needs a rider
+  await db.exec(`update order_offers set expires_at = now() - interval '1 second' where status = 'offered'`);
+  await db.exec(`update app_settings set value = '2' where key = 'max_auto_offers'`);
+  await asUser(r2, async () => {
+    ok((await db.query(`select * from my_offer()`)).rows.length === 0, 'expired offer disappears');
+  });
+  offers = await offersOf(o1);
+  ok(offers.find((f) => f.rider_id === r2)?.status === 'expired', 'unanswered offer marked expired');
+  ok((await db.query(`select dispatch_gave_up_at from orders where id = $1`, [o1])).rows[0].dispatch_gave_up_at !== null,
+    'after the last offer the order is flagged as needing a rider');
+  await db.exec(`update app_settings set value = '3' where key = 'max_auto_offers'`);
+  await asUser(r1, async () => {
+    ok((await db.query(`select * from list_open_orders(33.676, 73.015)`)).rows.some((r) => r.id === o1), 'flagged order still in the nearby list');
+  });
+
+  // Second order: accepted through the offer
+  await asUser(customer, async () => {
+    o2 = (await db.query(`select id from place_sauda_order($1, 'grocery', 'Olpers 1 litre, Dawn bread')`, [addressId])).rows[0].id;
+  });
+  await asUser(r1, async () => {
+    const [offer] = (await db.query(`select * from my_offer()`)).rows;
+    ok(offer?.order_id === o2, 'next order offered to the nearest free rider');
+    const taken = (await db.query(`select * from respond_offer($1, true)`, [offer.offer_id])).rows[0];
+    ok(taken.status === 'accepted' && taken.rider_id === r1, 'rider accepts through the offer');
+    await expectErr(`select respond_offer($1, true)`, 'an accepted offer cannot be answered again', [offer.offer_id]);
+  });
+  ok((await offersOf(o2)).every((f) => f.status !== 'offered'), 'no open offers left on a taken order');
+  ok((await outbox(customer)).some((n) => n.kind === 'order_status' && n.params.status === 'accepted'), 'customer notified: rider accepted');
+
+  // Rider location for the customer
+  await asUser(customer, async () => {
+    const loc = (await db.query(`select * from order_rider_location($1)`, [o2])).rows[0];
+    ok(loc?.latitude === 33.6762, 'customer sees where the rider is');
+    ok((await db.query(`select * from order_rider_location($1)`, [o1])).rows.length === 0, 'no rider location while still searching');
+  });
+  await asUser(stranger, async () => {
+    ok((await db.query(`select * from order_rider_location($1)`, [o2])).rows.length === 0, "others cannot see the rider's location");
+  });
+
+  // Substitutions
+  let s1, s2;
+  await asUser(r1, async () => {
+    const early = await expectErr(`select request_substitution($1, 'Olpers 1 litre')`, 'substitution only once at the shop', [o2]);
+    ok(early?.includes('not_at_shop'), 'error is not_at_shop');
+    await db.query(`select advance_order($1, 'at_shop', 33.68, 73.02)`, [o2]);
+    s1 = (await db.query(`select * from request_substitution($1, 'Olpers 1 litre', 'Nestle Milkpak 1 litre', 290)`, [o2])).rows[0];
+    ok(s1.status === 'pending' && s1.suggestion === 'Nestle Milkpak 1 litre' && s1.price === 290, 'rider asks: no Olpers, get Nestle?');
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [`subs/${o2}/bread1.jpg`]);
+    await expectErr(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`,
+      'substitution photo for another order refused', [`subs/${o1}/x.jpg`]);
+    await expectErr(`select request_substitution($1, 'Dawn bread', null, null, $2)`, 'photo from another order refused', [o2, `subs/${o1}/x.jpg`]);
+    s2 = (await db.query(`select * from request_substitution($1, 'Dawn bread', null, null, $2)`, [o2, `subs/${o2}/bread1.jpg`])).rows[0];
+    ok(s2.suggestion === null && s2.photo_path === `subs/${o2}/bread1.jpg`, 'rider asks: bread not available, skip it?');
+  });
+  ok((await outbox(customer)).filter((n) => n.kind === 'substitution').length === 2, 'customer notified about each question');
+  await asUser(customer, async () => {
+    ok((await db.query(`select * from order_substitutions where order_id = $1`, [o2])).rows.length === 2, 'customer sees the questions');
+    ok((await db.query(`select name from storage.objects where name = $1`, [`subs/${o2}/bread1.jpg`])).rows.length === 1, 'customer sees the substitution photo');
+    await expectErr(`select request_substitution($1, 'x')`, 'customers cannot ask substitutions', [o2]);
+    ok((await db.query(`select status from answer_substitution($1, true)`, [s1.id])).rows[0].status === 'approved', 'customer approves Nestle');
+    const again = await expectErr(`select answer_substitution($1, false)`, 'an answered question cannot be changed', [s1.id]);
+    ok(again?.includes('substitution_closed'), 'error is substitution_closed');
+  });
+  ok((await outbox(r1)).some((n) => n.kind === 'substitution_answer' && n.params.approved === true), 'rider notified of the answer');
+  await asUser(stranger, async () => {
+    ok((await db.query(`select * from order_substitutions`)).rows.length === 0, 'others cannot see substitutions');
+    await expectErr(`select answer_substitution($1, true)`, 'others cannot answer', [s2.id]);
+    ok((await db.query(`select name from storage.objects where name = $1`, [`subs/${o2}/bread1.jpg`])).rows.length === 0, 'others cannot see the photo');
+  });
+  await asUser(r2, async () => {
+    ok((await db.query(`select * from order_substitutions`)).rows.length === 0, 'other riders cannot see substitutions');
+  });
+  await asUser(r1, async () => {
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [`bills/${o2}.jpg`]);
+    await db.query(`select advance_order($1, 'on_the_way', null, null, 700, $2)`, [o2, `bills/${o2}.jpg`]);
+  });
+  ok((await db.query(`select status from order_substitutions where id = $1`, [s2.id])).rows[0].status === 'no_reply',
+    'unanswered question closed as no reply when the rider leaves the shop');
+  await asUser(customer, async () => {
+    await expectErr(`select answer_substitution($1, true)`, 'cannot answer after the rider left the shop', [s2.id]);
+  });
+
+  // Rider takes the flagged order from the list, then gives it back
+  await asUser(r2, async () => {
+    await db.query(`select accept_order($1)`, [o1]);
+    await db.query(`select cancel_order($1, 'Too far')`, [o1]);
+  });
+  const back = (await db.query(`select status, dispatch_gave_up_at from orders where id = $1`, [o1])).rows[0];
+  ok(back.status === 'requested' && back.dispatch_gave_up_at === null, 'released order goes back to automatic offers');
+  ok((await offersOf(o1)).find((f) => f.rider_id === r2)?.status === 'declined', 'rider who gave it back is not offered it again');
+
+  await asUser(customer, async () => {
+    await db.query(`select unregister_push_token('customer-token-0001')`);
+  });
+  ok((await db.query(`select count(*)::int n from push_tokens where user_id = $1`, [customer])).rows[0].n === 0, 'push token removed on sign-out');
+  const queued = (await outbox(customer)).length;
+  await asUser(r2, () => db.query(`select accept_order($1)`, [o1]));
+  ok((await outbox(customer)).length === queued, 'no notifications queued for someone without the app');
+  await db.exec(`update partners set is_online = false`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -478,10 +655,11 @@ console.log('\n== A. supabase/migrations');
   await checkAddressesAndZones(db);
   await checkPartners(db);
   await checkOrders(db);
+  await checkSaudaLive(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01..04 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..05 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -500,6 +678,7 @@ console.log('\n== B. SETUP_01..04 (each run twice, with an earlier signup)');
   await checkAddressesAndZones(db);
   await checkPartners(db);
   await checkOrders(db);
+  await checkSaudaLive(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

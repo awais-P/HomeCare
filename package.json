@@ -21,7 +21,9 @@
     "admin": "npm run dev -w @homecare/admin",
     "admin:build": "npm run build -w @homecare/admin",
     "site": "npm run dev -w @homecare/site",
-    "site:build": "npm run build -w @homecare/site"
+    "site:build": "npm run build -w @homecare/site",
+    "apk": "npm run android:release -w @homecare/mobile",
+    "partner:apk": "npm run android:release -w @homecare/partner"
   },
   "engines": {
     "node": ">=22"

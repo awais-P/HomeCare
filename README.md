@@ -75,9 +75,13 @@ Sign in with a Supabase **test number** (e.g. `0300 1234567` / code `123456`) â€
 > The app uses native modules (SQLite storage, keyboard controller), so it runs as a development build
 > (`npm run android`), not in Expo Go.
 
-### Backend (API) â€” from M4
+**Standalone APKs to copy to phones** (no laptop needed afterwards): `npm run apk` (customer) and
+`npm run partner:apk` (partner). Setup and a two-phone test errand: [docs/PHONE_TESTING.md](docs/PHONE_TESTING.md).
 
-Not needed for sign-in. Copy `apps/api/.env.example` to `apps/api/.env`, then:
+### Backend (API)
+
+Sends push notifications (see [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md)); nothing else
+needs it yet. Copy `apps/api/.env.example` to `apps/api/.env`, then:
 
 ```bash
 npm run api
@@ -89,6 +93,8 @@ npm run api
 | ------------------- | ------------------------------------ |
 | `npm run android`   | Build and launch the customer app on Android |
 | `npm run partner:android` | Build and launch the partner app on Android |
+| `npm run apk`       | Build the customer app as a standalone APK |
+| `npm run partner:apk` | Build the partner app as a standalone APK |
 | `npm run partner`   | Start the partner app's dev server   |
 | `npm run admin`     | Start the admin panel at http://localhost:5173 |
 | `npm run admin:build` | Build the admin panel for hosting  |

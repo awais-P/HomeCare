@@ -16,6 +16,8 @@ export type PayoutMethod = 'jazzcash' | 'easypaisa';
 export type OrderStatus = 'requested' | 'accepted' | 'at_shop' | 'on_the_way' | 'delivered' | 'cancelled';
 export type SaudaCategory = 'sabzi' | 'grocery' | 'meat' | 'bakery' | 'pharmacy' | 'food' | 'pick_drop' | 'other';
 export type OrderActor = 'customer' | 'rider' | 'admin';
+export type SubstitutionStatus = 'pending' | 'approved' | 'declined' | 'no_reply';
+export type OfferStatus = 'offered' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
 
 type OrderRow = {
   id: string;
@@ -46,6 +48,9 @@ type OrderRow = {
   cancel_reason: string | null;
   rating: number | null;
   rating_comment: string | null;
+  voice_note_path: string | null;
+  /** Set when automatic offers ran out: the order needs a rider (admin assigns, or a rider picks it from the list). */
+  dispatch_gave_up_at: string | null;
   created_at: string;
   accepted_at: string | null;
   at_shop_at: string | null;
@@ -65,6 +70,47 @@ export type OpenOrder = {
   distance_km: number;
   estimated_fee: number;
   created_at: string;
+};
+
+export type SubstitutionRow = {
+  id: string;
+  order_id: string;
+  item: string;
+  /** null = the item isn't available; the rider asks whether to skip it. */
+  suggestion: string | null;
+  price: number | null;
+  photo_path: string | null;
+  status: SubstitutionStatus;
+  created_at: string;
+  answered_at: string | null;
+};
+
+export type OfferRow = {
+  id: string;
+  order_id: string;
+  rider_id: string;
+  status: OfferStatus;
+  distance_km: number | null;
+  offered_at: string;
+  expires_at: string;
+  answered_at: string | null;
+};
+
+/** The rider's current automatic offer (no address until accepted). */
+export type RiderOffer = {
+  offer_id: string;
+  order_id: string;
+  code: string;
+  category: SaudaCategory;
+  items_text: string;
+  shop_preference: string | null;
+  voice_note_path: string | null;
+  photo_count: number;
+  area: string | null;
+  distance_km: number | null;
+  estimated_fee: number;
+  expires_at: string;
+  seconds_left: number;
 };
 
 type PartnerRow = {
@@ -217,6 +263,18 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      order_substitutions: {
+        Row: SubstitutionRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      order_offers: {
+        Row: OfferRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       waitlist_requests: {
         Row: {
           id: string;
@@ -291,6 +349,31 @@ export type Database = {
       rate_order: { Args: { p_order: string; p_rating: number; p_comment?: string }; Returns: OrderRow };
       delete_my_account: { Args: Record<string, never>; Returns: undefined };
       order_contact: { Args: { p_order: string }; Returns: { name: string | null; phone: string | null }[] };
+      place_sauda_order: {
+        Args: {
+          p_address_id: string;
+          p_category: SaudaCategory;
+          p_items_text: string;
+          p_shop_preference?: string;
+          p_instructions?: string;
+          p_photo_paths?: string[];
+          p_voice_path?: string;
+        };
+        Returns: OrderRow;
+      };
+      my_offer: { Args: Record<string, never>; Returns: RiderOffer[] };
+      respond_offer: { Args: { p_offer: string; p_accept: boolean }; Returns: OrderRow | null };
+      request_substitution: {
+        Args: { p_order: string; p_item: string; p_suggestion?: string; p_price?: number; p_photo_path?: string };
+        Returns: SubstitutionRow;
+      };
+      answer_substitution: { Args: { p_substitution: string; p_approve: boolean }; Returns: SubstitutionRow };
+      order_rider_location: {
+        Args: { p_order: string };
+        Returns: { latitude: number; longitude: number; seen_at: string | null }[];
+      };
+      register_push_token: { Args: { p_token: string; p_app: 'customer' | 'partner'; p_platform: 'android' | 'ios' }; Returns: undefined };
+      unregister_push_token: { Args: { p_token: string }; Returns: undefined };
     };
     Enums: {
       app_language: AppLanguage;
@@ -303,6 +386,8 @@ export type Database = {
       order_status: OrderStatus;
       sauda_category: SaudaCategory;
       order_actor: OrderActor;
+      substitution_status: SubstitutionStatus;
+      offer_status: OfferStatus;
     };
     CompositeTypes: { [_ in never]: never };
   };
@@ -318,3 +403,5 @@ export type PartnerInsert = Database['public']['Tables']['partners']['Insert'];
 export type PartnerUpdate = Database['public']['Tables']['partners']['Update'];
 export type Order = OrderRow;
 export type OrderEvent = Database['public']['Tables']['order_events']['Row'];
+export type Substitution = SubstitutionRow;
+export type Offer = OfferRow;

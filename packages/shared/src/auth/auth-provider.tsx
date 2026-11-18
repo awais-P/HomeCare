@@ -44,6 +44,16 @@ type ProfileResult =
   | { status: 'ready'; userId: string; profile: Profile }
   | { status: 'error'; userId: string };
 
+const beforeSignOutHooks = new Set<() => Promise<void>>();
+
+/** Runs `hook` (while still signed in) every time the user signs out. Returns a remover. */
+export function addBeforeSignOut(hook: () => Promise<void>) {
+  beforeSignOutHooks.add(hook);
+  return () => {
+    beforeSignOutHooks.delete(hook);
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { setLanguage } = useI18n();
   // Without Supabase settings there is no session to restore, so we are "loaded" immediately.
@@ -165,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (userId) writeJson(profileCacheKey(userId), null);
     languageSyncedFor.current = null;
+    // e.g. stop push notifications for this phone (needs the session, so before signing out)
+    for (const hook of beforeSignOutHooks) await hook().catch(() => undefined);
     // 'local' signs out this phone only; it also clears the session when offline.
     await supabase.auth.signOut({ scope: 'local' });
   }, [userId]);

@@ -12,6 +12,7 @@ Run these files **in order**, each in its own new query. Each is safe to run aga
 | 2 | [`supabase/SETUP_02_ADDRESSES_AND_ZONES.sql`](../supabase/SETUP_02_ADDRESSES_AND_ZONES.sql) | PostGIS, service zones, saved addresses, waitlist (P2) | `postgis_on`, `zones_ok`, `addresses_ok`, `waitlist_ok`, `map_functions_ok` |
 | 3 | [`supabase/SETUP_03_PARTNERS.sql`](../supabase/SETUP_03_PARTNERS.sql) | Partners, private CNIC/selfie storage, admins, online status (P3) | `partners_table`, `partner_rules_ok`, `private_bucket_ok`, `document_rules_ok`, `actions_ok` |
 | 4 | [`supabase/SETUP_04_ORDERS_AND_ACCOUNT.sql`](../supabase/SETUP_04_ORDERS_AND_ACCOUNT.sql) | Business settings (provisional fees and limits), Sauda Run orders, order photos, account deletion (P4) | `settings_ok`, `orders_ok`, `order_rules_ok`, `order_media_ok`, `actions_ok` |
+| 5 | [`supabase/SETUP_05_SAUDA_LIVE.sql`](../supabase/SETUP_05_SAUDA_LIVE.sql) | Substitution questions, voice notes, automatic offers to the nearest rider, rider location, live updates, push notification queue (P4 slice 2) | `settings_ok`, `substitutions_ok`, `offers_ok`, `voice_and_photos_ok`, `push_ok`, `actions_ok` |
 
 For each file:
 
@@ -27,6 +28,13 @@ What the security rules guarantee:
 - `service_zones`: apps can only read them; changes are made in the dashboard.
 
 You can see the tables under **Table Editor** (each marked "RLS enabled").
+
+### Automatic offers timer (after SETUP_05)
+
+`SETUP_05` turns on a 10-second timer (pg_cron) that moves an unanswered offer on to the next rider.
+Check it worked: `select jobname, schedule from cron.job;` should list `homecare-dispatch` with `10 seconds`.
+If it doesn't (or `cron` doesn't exist), turn on **Database → Extensions → pg_cron** and run `SETUP_05`
+again. Without the timer, offers still move on whenever a rider's app checks in (every 10 s while online).
 
 ### Make yourself an admin (for the admin panel)
 
@@ -127,3 +135,6 @@ Both values are public by design. **Never** put the database password or a `sb_s
 | "Couldn't load your addresses" / no green areas  | `SETUP_02` not run (step 1)                                    |
 | "Couldn't check this spot" on the map picker     | `SETUP_02` not run, or no internet                             |
 | "We're not in this area yet" for your own home   | Outside the pilot zones: add a test zone (step 1, zones)       |
+| Placing an order fails / no "Your orders"         | `SETUP_04` not run (step 1)                                    |
+| Voice note or rider questions fail; no offers    | `SETUP_05` not run (step 1)                                    |
+| Riders never get an automatic offer              | Rider offline, more than 5 km away, busy, or last location older than 2 minutes |

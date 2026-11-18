@@ -1,19 +1,24 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, StyleSheet, View } from 'react-native';
 
+import { VoiceNotePlayer } from '@homecare/shared/audio';
 import { errorMessageKey } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
-import type { Order } from '@homecare/shared/lib';
+import type { Order, Substitution } from '@homecare/shared/lib';
 import { getDeviceLocation } from '@homecare/shared/location';
 import { pickPhoto } from '@homecare/shared/media';
-import { CATEGORY_ICON, CATEGORY_KEY, formatRupees, STATUS_KEY } from '@homecare/shared/orders';
+import { CATEGORY_ICON, CATEGORY_KEY, formatRupees, STATUS_KEY, SUBSTITUTION_STATUS_KEY, useOrderLive } from '@homecare/shared/orders';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
 import { AppText, BackHeader, Badge, Button, Card, Divider, IconCircle, InlineMessage, Screen, TextField } from '@homecare/shared/ui';
 
-import { advanceOrder, cashLimit, getCustomerContact, getOrder, releaseOrder, uploadBill } from '@/features/partner/jobs';
+import { advanceOrder, cashLimit, fileUrls, getCustomerContact, getOrder, listSubstitutions, releaseOrder, uploadBill } from '@/features/partner/jobs';
+import { SubstitutionForm } from '@/features/partner/substitution-form';
+
+/** Backup refresh; the customer's answers normally arrive instantly through Realtime. */
+const REFRESH_MS = 15_000;
 
 /** The rider's current order, one step at a time. */
 export default function JobScreen() {
@@ -30,22 +35,47 @@ export default function JobScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [subs, setSubs] = useState<Substitution[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
+  useOrderLive(id ?? null, reload);
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      const [o, c, l] = await Promise.all([getOrder(id), getCustomerContact(id), cashLimit()]);
+    const fetchJob = async () => {
+      const [o, c, l, s] = await Promise.all([getOrder(id), getCustomerContact(id), cashLimit(), listSubstitutions(id)]);
+      const photoPaths = s.flatMap((x) => (x.photo_path ? [x.photo_path] : []));
+      const nextUrls = await fileUrls(photoPaths);
       if (!active) return;
       setOrder(o);
       setContact(c);
       setLimit(l);
-    })().catch(() => {
+      setSubs(s);
+      setUrls(nextUrls);
+    };
+    fetchJob().catch(() => {
       if (active) setError(t('errors.generic'));
+    });
+    const timer = setInterval(() => void fetchJob().catch(() => undefined), REFRESH_MS);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [id, reloadToken, t]);
+
+  // The voice note gets its own link once, so playback isn't interrupted by the refreshes.
+  const voicePath = order?.voice_note_path ?? null;
+  useEffect(() => {
+    if (!voicePath) return;
+    let active = true;
+    fileUrls([voicePath]).then((map) => {
+      if (active) setVoiceUrl(map[voicePath] ?? null);
     });
     return () => {
       active = false;
     };
-  }, [id, reloadToken, t]);
+  }, [voicePath]);
 
   if (!order) {
     return (
@@ -61,7 +91,7 @@ export default function JobScreen() {
     try {
       const updated = await action();
       if (updated) setOrder(updated);
-      setReloadToken((n) => n + 1);
+      reload();
     } catch (e) {
       const msg = (e as { message?: string }).message ?? '';
       if (msg.includes('cash_limit_exceeded')) setError(t('job.cashLimit', { limit: formatRupees(limit) }));
@@ -94,11 +124,24 @@ export default function JobScreen() {
   };
 
   const billAmount = Number(bill.replace(/\D/g, ''));
-  const onTheWay = () =>
+  const pendingSubs = subs.filter((s) => s.status === 'pending');
+  const leaveShop = () =>
     run(async () => {
       if (!billAmount || !billPath) throw new Error('bill_required');
       return advanceOrder(order.id, 'on_the_way', { itemCost: billAmount, billPhotoPath: billPath });
     });
+  const onTheWay = () => {
+    if (!pendingSubs.length) {
+      void leaveShop();
+      return;
+    }
+    Alert.alert(t('subs.leaveTitle'), t('subs.leaveBody', { count: pendingSubs.length }), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('subs.leave'), style: 'destructive', onPress: () => void leaveShop() },
+    ]);
+  };
+  const question = (s: Substitution) =>
+    s.suggestion ? t('subs.askReplace', { item: s.item, suggestion: s.suggestion }) : t('subs.askSkip', { item: s.item });
 
   const delivered = () => run(() => advanceOrder(order.id, 'delivered'));
 
@@ -140,7 +183,8 @@ export default function JobScreen() {
           <AppText variant="label" color="textMuted">
             {t('order.detail.items')}
           </AppText>
-          <AppText>{order.items_text}</AppText>
+          {order.voice_note_path ? <VoiceNotePlayer uri={voiceUrl} /> : null}
+          {!(order.voice_note_path && order.items_text === 'Voice note') ? <AppText>{order.items_text}</AppText> : null}
           <AppText variant="caption" color="textMuted">
             {t('order.detail.shop')}: {order.shop_preference ?? t('order.detail.nearestShop')}
           </AppText>
@@ -177,6 +221,35 @@ export default function JobScreen() {
           </>
         ) : null}
 
+        {/* Questions to the customer about missing items */}
+        {subs.length ? (
+          <Card style={styles.block}>
+            <AppText variant="label" color="textMuted">
+              {t('subs.mine')}
+            </AppText>
+            {subs.map((s) => (
+              <View key={s.id} style={[styles.rowCenter, { flexDirection: row }]}>
+                {s.photo_path && urls[s.photo_path] ? (
+                  <Image source={{ uri: urls[s.photo_path] }} style={[styles.billThumb, { borderColor: colors.border }]} contentFit="cover" />
+                ) : null}
+                <View style={styles.flex}>
+                  <AppText variant="caption">{question(s)}</AppText>
+                  {s.price != null ? (
+                    <AppText variant="small" color="textMuted">
+                      {t('subs.price', { price: formatRupees(s.price) })}
+                    </AppText>
+                  ) : null}
+                </View>
+                <Badge
+                  label={t(SUBSTITUTION_STATUS_KEY[s.status])}
+                  tone={s.status === 'approved' ? 'primary' : s.status === 'declined' ? 'danger' : 'sauda'}
+                />
+              </View>
+            ))}
+          </Card>
+        ) : null}
+        {order.status === 'at_shop' ? <SubstitutionForm orderId={order.id} onSent={(s) => setSubs((prev) => [...prev, s])} /> : null}
+
         {/* Step: shopping done -> bill */}
         {order.status === 'at_shop' ? (
           <Card style={styles.block}>
@@ -201,7 +274,7 @@ export default function JobScreen() {
               </View>
             ) : null}
             <Button label={billPath ? t('partner.docs.retake') : t('job.takeBill')} icon="camera" variant="outline" size="md" disabled={busy} onPress={() => void takeBillPhoto()} />
-            <Button label={t('job.onTheWay')} icon="bicycle" loading={busy} disabled={!billAmount || !billPath} onPress={() => void onTheWay()} />
+            <Button label={t('job.onTheWay')} icon="bicycle" loading={busy} disabled={!billAmount || !billPath} onPress={onTheWay} />
           </Card>
         ) : null}
 
