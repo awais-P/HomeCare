@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { Alert, StyleSheet, View } from 'react-native';
 
-import { AppText, Avatar, Card, Divider, ListItem, Screen, SegmentedControl } from '@homecare/shared/ui';
+import { AppText, Avatar, Card, Divider, ListItem, Screen, SegmentedControl, ToggleRow } from '@homecare/shared/ui';
 import { formatE164ForDisplay, useAuth } from '@homecare/shared/auth';
 import { useI18n, useRowDirection } from '@homecare/shared/i18n';
 import type { AppLanguage } from '@homecare/shared/lib';
@@ -58,6 +58,15 @@ export default function AccountScreen() {
           <ListItem icon="help-circle-outline" title={t('account.help')} value={t('common.comingSoon')} disabled />
         </View>
 
+        <View style={[styles.group, styles.togglePad, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <ToggleRow
+            label={t('safety.preferFemale')}
+            hint={t('safety.preferFemaleHint')}
+            value={profile?.prefer_female_partner ?? false}
+            onValueChange={(value) => void updateProfile({ prefer_female_partner: value }).catch(() => {})}
+          />
+        </View>
+
         <View style={styles.languageBlock}>
           <AppText variant="label" color="textMuted">
             {t('account.language')}
@@ -106,5 +115,6 @@ const styles = StyleSheet.create({
   content: { gap: spacing.lg },
   profileCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   group: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
+  togglePad: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   languageBlock: { gap: spacing.xs + 2 },
 });

@@ -28,7 +28,7 @@ Two apps, two APKs; both can be installed on the same phone:
   (they are baked into the APK when it is built; change them → rebuild).
 - Optional, for push notifications: `google-services.json` in both app folders
   (`docs/PUSH_NOTIFICATIONS.md`).
-- Supabase: run `SETUP_01` … `SETUP_07` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
+- Supabase: run `SETUP_01` … `SETUP_08` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
   yourself an admin.
 
 ## Build and install
@@ -72,6 +72,11 @@ shop", "I'm at your door"). The admin panel shows each chat and can reply as sup
 is locked. On Android 11+ this opens Settings: choose **Allow all the time**. A notification ("you
 are online") stays while sharing; going offline stops it. Some phones (Xiaomi, Oppo, Vivo, Huawei)
 also need HomeCare Partner set to "No restrictions" for battery, or they stop it after a while.
+
+**Safety:** on an active order or booking both apps show **SOS** (call 15 / 1122 or alert the team,
+which appears in admin → Safety) and **Report a problem** (also up to 7 days after). The customer
+also gets **Share trip with family** once `EXPO_PUBLIC_SITE_URL` points at the hosted website. In
+Account, "Prefer a woman rider or ustaad" asks women partners first.
 
 Both phones need location on. The rider must be within 5 km of the delivery address
 (`dispatch_radius_km` in admin → Settings) for offers.

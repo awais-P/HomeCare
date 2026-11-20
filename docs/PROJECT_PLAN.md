@@ -45,7 +45,7 @@ gantt
 | P4 Sauda Run MVP 🚧 | 5 | to 7 Feb 2027 | 10 test errands completed end to end, cash settled |
 | P5 Ustaad MVP 🚧 | 3 | to 28 Feb 2027 | 10 test jobs completed with quote → approve → done |
 | P6 Realtime & notifications 🚧 | 2 | to 14 Mar 2027 | Status changes arrive as push within 5 s; live rider location on map |
-| P7 Trust & safety | 2 | to 28 Mar 2027 | SOS, share-trip and disputes work; admin can suspend a partner |
+| P7 Trust & safety 🚧 | 2 | to 28 Mar 2027 | SOS, share-trip and disputes work; admin can suspend a partner |
 | P8 Pilot launch & pilot | 4 | to 25 Apr 2027 | 3-week pilot run; pilot metrics (section 8) measured |
 
 ---
@@ -202,11 +202,19 @@ Still to do:
 
 **Done when:** status changes reach the customer as a push within 5 seconds, and chat works both ways.
 
-### P7 Trust & safety ⬜ (2 weeks)
-- [ ] SOS button; share live trip/job with family
-- [ ] Female-customer preference setting
-- [ ] Disputes: raise an issue on an order, admin notes, adjustment recorded
-- [ ] Partner suspension; ratings moderation
+### P7 Trust & safety 🚧 (2 weeks)
+Built (`SETUP_08`, tested):
+- [x] SOS on active orders and bookings (both apps): call 15 / 1122, or alert the HomeCare team with location; admins get a push and see it in admin → Safety
+- [x] Share a live trip or booking with family: private link to the website (`/track/<token>`), status and partner position, no address or phone; stops 1 hour after the end
+- [x] "Prefer a woman rider or ustaad" (Account): women are offered the order first; gender comes from the CNIC (last digit odd = man, even = woman)
+- [x] Disputes: report a problem during or up to 7 days after; admin reviews, resolves or rejects with a note, records a money adjustment; the raiser is notified
+- [x] Ratings moderation (admin removes an unfair rating, kept for the record) and a rating summary per partner with a low-rating flag
+- [x] Partner suspension (P3): a suspended partner goes offline and cannot go online (tested)
+- [x] "CNIC verified" on the rider/ustaad card
+
+Still to do:
+- [ ] Host the website and set `EXPO_PUBLIC_SITE_URL` so the share button appears
+- [ ] Support phone/WhatsApp number in the apps (needs the team's number)
 
 **Done when:** a test dispute is raised and resolved in admin, and a suspended partner can no longer go online.
 

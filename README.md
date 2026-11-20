@@ -98,7 +98,7 @@ npm run api
 | `npm run partner`   | Start the partner app's dev server   |
 | `npm run admin`     | Start the admin panel at http://localhost:5173 |
 | `npm run admin:build` | Build the admin panel for hosting  |
-| `npm run site`      | Start the public website at http://localhost:5174 |
+| `npm run site`      | Start the public website (legal pages, live tracking links) at http://localhost:5174 |
 | `npm run site:build` | Build the public website for hosting |
 | `npm run mobile`    | Start the Expo/Metro dev server      |
 | `npm run api`       | Start the NestJS API in watch mode   |

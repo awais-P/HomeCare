@@ -12,6 +12,7 @@ import type { Order, Substitution } from '@homecare/shared/lib';
 import { getDeviceLocation } from '@homecare/shared/location';
 import { pickPhoto } from '@homecare/shared/media';
 import { CATEGORY_ICON, CATEGORY_KEY, formatRupees, STATUS_KEY, SUBSTITUTION_STATUS_KEY, useOrderLive } from '@homecare/shared/orders';
+import { SafetyActions } from '@homecare/shared/safety';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
 import { AppText, BackHeader, Badge, Button, Card, Divider, IconCircle, InlineMessage, Screen, TextField } from '@homecare/shared/ui';
 
@@ -223,6 +224,13 @@ export default function JobScreen() {
         ) : null}
 
         <ChatButton thread={{ kind: 'order', id: order.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'order', id: order.id } })} />
+
+        <SafetyActions
+          thread={{ kind: 'order', id: order.id }}
+          active={['accepted', 'at_shop', 'on_the_way'].includes(order.status)}
+          onSos={() => router.push({ pathname: '/sos', params: { kind: 'order', id: order.id } })}
+          onReport={() => router.push({ pathname: '/report/[kind]/[id]', params: { kind: 'order', id: order.id, code: order.code } })}
+        />
 
         {/* Questions to the customer about missing items */}
         {subs.length ? (

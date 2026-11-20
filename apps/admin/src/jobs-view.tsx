@@ -250,7 +250,22 @@ function JobDetail({ job, onChanged }: { job: JobRow; onChanged: () => void }) {
           <>
             <dt>Rating</dt>
             <dd>
-              {'★'.repeat(job.rating)} {job.rating_comment ?? ''}
+              {'★'.repeat(job.rating)} {job.rating_comment ?? ''}{' '}
+              <button
+                className="btn ghost small"
+                onClick={() => {
+                  const reason = window.prompt('Why remove this rating? (kept for the record)');
+                  if (reason?.trim()) void act(() => supabase.rpc('remove_rating', { p_reason: reason.trim(), p_job: job.id }));
+                }}>
+                Remove rating
+              </button>
+            </dd>
+          </>
+        ) : job.removed_rating ? (
+          <>
+            <dt>Rating</dt>
+            <dd className="muted">
+              Removed ({job.removed_rating}★): {job.rating_removed_reason}
             </dd>
           </>
         ) : null}

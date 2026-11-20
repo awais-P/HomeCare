@@ -15,6 +15,10 @@ Run these files **in order**, each in its own new query. Each is safe to run aga
 | 5 | [`supabase/SETUP_05_SAUDA_LIVE.sql`](../supabase/SETUP_05_SAUDA_LIVE.sql) | Substitution questions, voice notes, automatic offers to the nearest rider, rider location, live updates, push notification queue (P4 slice 2) | `settings_ok`, `substitutions_ok`, `offers_ok`, `voice_and_photos_ok`, `push_ok`, `actions_ok` |
 | 6 | [`supabase/SETUP_06_USTAAD.sql`](../supabase/SETUP_06_USTAAD.sql) | Ustaad bookings: jobs, offers to ustaads, quotes, warranty revisits, favourites (P5) | `settings_ok`, `jobs_ok`, `offers_ok`, `favourites_ok`, `media_ok`, `actions_ok` |
 | 7 | [`supabase/SETUP_07_CHAT.sql`](../supabase/SETUP_07_CHAT.sql) | In-app chat per order and booking (P6) | `chat_ok`, `rules_ok`, `actions_ok` |
+| 8 | [`supabase/SETUP_08_SAFETY.sql`](../supabase/SETUP_08_SAFETY.sql) | SOS alerts, share-trip links, women-first preference, disputes, rating moderation (P7) | `columns_ok`, `sos_ok`, `sharing_ok`, `disputes_ok`, `moderation_ok`, `actions_ok` |
+
+Scripts build on each other. If you ever run an older one again, run the later ones again after it
+(for example `SETUP_08` updates two functions from `SETUP_05` and `SETUP_06`).
 
 For each file:
 
@@ -140,5 +144,6 @@ Both values are public by design. **Never** put the database password or a `sb_s
 | Placing an order fails / no "Your orders"         | `SETUP_04` not run (step 1)                                    |
 | Voice note or rider questions fail; no offers    | `SETUP_05` not run (step 1)                                    |
 | "Couldn't book" an ustaad / no Ustaad jobs        | `SETUP_06` not run (step 1)                                    |
+| SOS / "Report a problem" fails; no share link     | `SETUP_08` not run (step 1)                                    |
 | Chat button missing / "Couldn't send"            | `SETUP_07` not run (step 1)                                    |
 | Riders never get an automatic offer              | Rider offline, more than 5 km away, busy, or last location older than 2 minutes |

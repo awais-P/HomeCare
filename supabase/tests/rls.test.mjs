@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01..07, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..08, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql', 'SETUP_07_CHAT.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql', 'SETUP_07_CHAT.sql', 'SETUP_08_SAFETY.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -1011,6 +1011,185 @@ async function checkChat(db) {
   await db.exec(`update partners set is_online = false`);
 }
 
+// ----------------------------------------------------------------------- P7: trust & safety
+async function checkSafety(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  await db.exec(`update partners set is_online = false`);
+  const customer = await newUser('923070000001');
+  const riderM = await newUser('923070000002'); // man, nearest
+  const riderF = await newUser('923070000003'); // woman, a bit farther
+  const ustaadM = await newUser('923070000004');
+  const ustaadF = await newUser('923070000005');
+  const stranger = await newUser('923070000006');
+  const admin = await newUser('923070000007');
+  await db.query(`insert into admins (user_id) values ($1) on conflict do nothing`, [admin]);
+  const partners = [
+    [riderM, 'rider', '{}', '61101-1111111-1', 33.6762, 73.0152],
+    [riderF, 'rider', '{}', '61101-2222222-2', 33.69, 73.03],
+    [ustaadM, 'ustaad', '{plumber}', '61101-3333333-3', 33.6762, 73.0152],
+    [ustaadF, 'ustaad', '{plumber}', '61101-4444444-4', 33.69, 73.03],
+  ];
+  for (const [id, role, trades, cnic, lat, lng] of partners) {
+    await db.query(`insert into partners (id, role, trades, cnic_number, status, is_online, last_latitude, last_longitude, last_seen_at)
+                    values ($1, $2, $3, $4, 'approved', true, $5, $6, now())`, [id, role, trades, cnic, lat, lng]);
+  }
+  await db.query(`update profiles set full_name = 'Ayesha Khan' where id = $1`, [riderF]);
+  for (const [who, app] of [[customer, 'customer'], [admin, 'customer'], [riderF, 'partner']]) {
+    await asUser(who, () => db.query(`select register_push_token($1, $2, 'android')`, [`safety-token-${who}`, app]));
+  }
+  const outbox = async (userId, kind) =>
+    (await db.query(`select params from notification_outbox where user_id = $1 and kind = $2 order by id`, [userId, kind])).rows;
+
+  const genders = (await db.query(`select id, gender from partners where id in ($1, $2)`, [riderM, riderF])).rows;
+  ok(genders.find((g) => g.id === riderM)?.gender === 'male' && genders.find((g) => g.id === riderF)?.gender === 'female',
+    'gender read from the CNIC (odd last digit = man, even = woman)');
+
+  // Women-first preference
+  let orderId, addressId;
+  await asUser(customer, async () => {
+    const up = await db.query(`update profiles set prefer_female_partner = true where id = $1`, [customer]);
+    ok(up.affectedRows === 1, 'customer turns on "prefer a woman rider or ustaad"');
+    addressId = (await db.query(`insert into addresses (latitude, longitude, formatted_address, area)
+      values (33.676, 73.015, 'Street 1, G-10/2, Islamabad', 'G-10/2') returning id`)).rows[0].id;
+    orderId = (await db.query(`select id from place_sauda_order($1, 'pharmacy', 'Panadol, ORS')`, [addressId])).rows[0].id;
+  });
+  await asUser(stranger, async () => {
+    ok((await db.query(`update profiles set prefer_female_partner = true where id = $1`, [customer])).affectedRows === 0,
+      "others cannot change someone's preference");
+  });
+  const firstOffer = (await db.query(`select rider_id from order_offers where order_id = $1 and status = 'offered'`, [orderId])).rows[0];
+  ok(firstOffer?.rider_id === riderF, 'with the preference, the woman rider is offered the order first (even if farther)');
+  await asUser(riderF, () => db.query(`select accept_order($1)`, [orderId]));
+
+  // Share the trip
+  let token;
+  await asUser(customer, async () => {
+    token = (await db.query(`select create_trip_share($1) t`, [orderId])).rows[0].t;
+    ok(typeof token === 'string' && token.length === 64, 'customer gets a share link token');
+    ok((await db.query(`select create_trip_share($1) t`, [orderId])).rows[0].t === token, 'asking again gives the same link');
+  });
+  await asUser(riderF, async () => {
+    const msg = await expectErr(`select create_trip_share($1)`, 'only the customer shares the trip', [orderId]);
+    ok(msg?.includes('not_your_order'), 'error is not_your_order');
+  });
+  await db.exec(`set role anon;`);
+  const shared = (await db.query(`select * from shared_trip($1)`, [token])).rows[0];
+  ok(shared?.status === 'accepted' && shared.partner_name === 'Ayesha' && shared.partner_latitude === 33.69 && shared.area === 'G-10/2',
+    'family sees status, the rider\'s first name and position without signing in');
+  ok(!('delivery_text' in shared) && !('phone' in shared), 'no address or phone number on the shared page');
+  ok((await db.query(`select * from shared_trip('not-a-real-token')`)).rows.length === 0, 'unknown link shows nothing');
+  await expectErr(`select * from trip_shares`, 'anon cannot list share links');
+  await db.exec(`reset role;`);
+
+  // SOS
+  let alertId;
+  await asUser(customer, async () => {
+    const a = (await db.query(`select * from raise_sos($1, null, 33.676, 73.015, 'Rider is asking for extra money')`, [orderId])).rows[0];
+    alertId = a.id;
+    ok(a.status === 'open' && a.role === 'customer' && a.order_id === orderId, 'customer raises an SOS on the order');
+  });
+  ok((await outbox(admin, 'sos_alert')).some((n) => n.params.alert_id === alertId), 'admins notified of the SOS at once');
+  await asUser(stranger, async () => {
+    await expectErr(`select raise_sos($1)`, "cannot raise an SOS on someone else's order", [orderId]);
+    const own = (await db.query(`select * from raise_sos(null, null, 33.7, 73.0)`)).rows[0];
+    ok(own.role === 'customer' && own.order_id === null, 'anyone signed in can raise a general SOS');
+    ok((await db.query(`select * from safety_alerts`)).rows.length === 1, 'people see only their own alerts');
+    await expectErr(`select resolve_sos($1, 'ok')`, 'only admins resolve alerts', [alertId]);
+  });
+  await asUser(admin, async () => {
+    ok((await db.query(`select * from safety_alerts`)).rows.length >= 2, 'admins see every alert');
+    await expectErr(`select resolve_sos($1, '')`, 'resolving needs a note', [alertId]);
+    ok((await db.query(`select status from resolve_sos($1, 'Called the customer; rider warned')`, [alertId])).rows[0].status === 'resolved',
+      'admin resolves the alert with a note');
+    await expectErr(`select resolve_sos($1, 'again')`, 'a resolved alert cannot be resolved again', [alertId]);
+  });
+
+  // Finish the order, then disputes
+  await asUser(riderF, async () => {
+    await db.query(`select advance_order($1, 'at_shop', 33.68, 73.02)`, [orderId]);
+    await db.query(`insert into storage.objects (bucket_id, name) values ('order-media', $1)`, [`bills/${orderId}.jpg`]);
+    await db.query(`select advance_order($1, 'on_the_way', null, null, 450, $2)`, [orderId, `bills/${orderId}.jpg`]);
+    await db.query(`select advance_order($1, 'delivered')`, [orderId]);
+  });
+  await db.exec(`set role anon;`);
+  ok((await db.query(`select finished, partner_latitude from shared_trip($1)`, [token])).rows[0]?.finished === true,
+    'shared page shows "finished" for an hour after delivery');
+  await db.exec(`reset role;`);
+
+  let disputeId;
+  await asUser(customer, async () => {
+    await expectErr(`select raise_dispute('overcharged', 'x', $1)`, 'a dispute needs some details', [orderId]);
+    const d = (await db.query(`select * from raise_dispute('overcharged', 'The bill photo says Rs 300 but I paid Rs 450', $1)`, [orderId])).rows[0];
+    disputeId = d.id;
+    ok(d.status === 'open' && d.raised_role === 'customer' && /^DS-[0-9A-F]{6}$/.test(d.code), 'customer reports a problem (DS- code)');
+    const again = await expectErr(`select raise_dispute('other', 'Another complaint here', $1)`, 'one open dispute per order at a time', [orderId]);
+    ok(again?.includes('dispute_exists'), 'error is dispute_exists');
+    await expectErr(`update disputes set status = 'resolved' where id = $1`, 'customers cannot change disputes directly', [disputeId]);
+  });
+  ok((await outbox(admin, 'dispute_raised')).length === 1, 'admins notified of the dispute');
+  await asUser(riderF, async () => {
+    const d = (await db.query(`select * from raise_dispute('behaviour', 'Customer was rude at the gate', $1)`, [orderId])).rows[0];
+    ok(d.raised_role === 'partner', 'the rider can report a problem too');
+    ok((await db.query(`select * from disputes`)).rows.length === 1, "the rider sees only their own report, not the customer's");
+  });
+  await asUser(stranger, async () => {
+    await expectErr(`select raise_dispute('other', 'Not my order at all', $1)`, "cannot report on someone else's order", [orderId]);
+    await expectErr(`select update_dispute($1, 'resolved', 'done')`, 'only admins handle disputes', [disputeId]);
+  });
+  await asUser(admin, async () => {
+    ok((await db.query(`select * from disputes where order_id = $1`, [orderId])).rows.length === 2, 'admins see both reports');
+    await expectErr(`select update_dispute($1, 'resolved')`, 'resolving needs a note for the customer', [disputeId]);
+    ok((await db.query(`select status from update_dispute($1, 'in_review')`, [disputeId])).rows[0].status === 'in_review', 'admin starts reviewing');
+    const r = (await db.query(`select * from update_dispute($1, 'resolved', 'Rider overcharged; Rs 150 returned to you', 150)`, [disputeId])).rows[0];
+    ok(r.status === 'resolved' && r.adjustment === 150 && r.resolved_at !== null, 'resolved with a note and a Rs 150 refund recorded');
+    await expectErr(`select update_dispute($1, 'rejected', 'x')`, 'a closed dispute stays closed', [disputeId]);
+  });
+  ok((await outbox(customer, 'dispute_update')).some((n) => n.params.status === 'resolved'), 'customer notified of the outcome');
+  await db.query(`update orders set delivered_at = now() - interval '8 days' where id = $1`, [orderId]);
+  await asUser(customer, async () => {
+    const late = await expectErr(`select raise_dispute('other', 'Remembered something else', $1)`, 'reports close 7 days after the order', [orderId]);
+    ok(late?.includes('too_late'), 'error is too_late');
+  });
+
+  // Rating moderation
+  await asUser(customer, () => db.query(`select rate_order($1, 1::smallint, 'abusive words here')`, [orderId]));
+  await asUser(admin, async () => {
+    const before = (await db.query(`select * from partner_ratings() where partner_id = $1`, [riderF])).rows[0];
+    ok(Number(before?.rating_avg) === 1 && before.rating_count === 1 && before.low === false, 'admin sees the rider\'s rating summary');
+    await db.query(`select remove_rating('Abusive comment, not about the service', $1)`, [orderId]);
+    const row = (await db.query(`select rating, removed_rating from orders where id = $1`, [orderId])).rows[0];
+    ok(row.rating === null && row.removed_rating === 1, 'admin removes the rating (kept for the record)');
+    ok((await db.query(`select * from partner_ratings() where partner_id = $1`, [riderF])).rows.length === 0, 'removed rating no longer counts');
+  });
+  await asUser(customer, async () => {
+    const msg = await expectErr(`select rate_order($1, 1::smallint)`, 'cannot rate again after a removal', [orderId]);
+    ok(msg?.includes('rating_removed'), 'error is rating_removed');
+  });
+  await asUser(stranger, async () => {
+    await expectErr(`select remove_rating('x', $1)`, 'only admins remove ratings', [orderId]);
+    await expectErr(`select * from partner_ratings()`, 'only admins see rating summaries');
+  });
+
+  // Women-first for ustaad jobs too
+  let jobId;
+  await asUser(customer, async () => {
+    jobId = (await db.query(`select id from create_ustaad_job($1, 'plumber', 'Bathroom tap broken')`, [addressId])).rows[0].id;
+  });
+  ok((await db.query(`select ustaad_id from job_offers where job_id = $1 and status = 'offered'`, [jobId])).rows[0]?.ustaad_id === ustaadF,
+    'the woman ustaad is offered the job first');
+
+  // Account deletion
+  await asUser(customer, () => db.query(`select delete_my_account()`));
+  ok((await db.query(`select count(*)::int n from trip_shares where token = $1`, [token])).rows[0].n === 0, 'share links are removed with the account');
+  ok((await db.query(`select note from safety_alerts where id = $1`, [alertId])).rows[0].note === null, 'SOS kept for the record without the note');
+
+  await db.exec(`set role anon;`);
+  await expectErr(`select * from disputes`, 'anon cannot read disputes');
+  await expectErr(`select raise_sos()`, 'anon cannot raise an SOS');
+  await db.exec(`reset role;`);
+  await db.exec(`update partners set is_online = false`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -1025,10 +1204,11 @@ console.log('\n== A. supabase/migrations');
   await checkSaudaLive(db);
   await checkUstaad(db);
   await checkChat(db);
+  await checkSafety(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01..07 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..08 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -1050,6 +1230,7 @@ console.log('\n== B. SETUP_01..07 (each run twice, with an earlier signup)');
   await checkSaudaLive(db);
   await checkUstaad(db);
   await checkChat(db);
+  await checkSafety(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

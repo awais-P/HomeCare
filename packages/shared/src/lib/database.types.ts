@@ -29,6 +29,8 @@ export type JobStatus =
   | 'visit_only'
   | 'cancelled';
 export type JobTiming = 'now' | 'scheduled';
+export type DisputeReason = 'wrong_items' | 'overcharged' | 'poor_work' | 'damage' | 'late_or_no_show' | 'behaviour' | 'safety' | 'other';
+export type DisputeStatus = 'open' | 'in_review' | 'resolved' | 'rejected';
 
 type OrderRow = {
   id: string;
@@ -59,6 +61,9 @@ type OrderRow = {
   cancel_reason: string | null;
   rating: number | null;
   rating_comment: string | null;
+  removed_rating: number | null;
+  rating_removed_reason: string | null;
+  rating_removed_at: string | null;
   voice_note_path: string | null;
   /** Set when automatic offers ran out: the order needs a rider (admin assigns, or a rider picks it from the list). */
   dispatch_gave_up_at: string | null;
@@ -160,6 +165,9 @@ type UstaadJobRow = {
   cancel_reason: string | null;
   rating: number | null;
   rating_comment: string | null;
+  removed_rating: number | null;
+  rating_removed_reason: string | null;
+  rating_removed_at: string | null;
   warranty_until: string | null;
   dispatch_gave_up_at: string | null;
   created_at: string;
@@ -231,6 +239,58 @@ export type ChatMessageRow = {
   read_at: string | null;
 };
 
+export type SafetyAlertRow = {
+  id: string;
+  user_id: string | null;
+  role: 'customer' | 'partner';
+  order_id: string | null;
+  job_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  note: string | null;
+  status: 'open' | 'resolved';
+  resolution_note: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+export type DisputeRow = {
+  id: string;
+  code: string;
+  order_id: string | null;
+  job_id: string | null;
+  raised_by: string | null;
+  raised_role: 'customer' | 'partner';
+  reason: DisputeReason;
+  details: string;
+  status: DisputeStatus;
+  resolution: string | null;
+  /** PKR: positive = paid back to the customer, negative = charged. */
+  adjustment: number;
+  handled_by: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+};
+
+/** What a family member sees on the public tracking page. */
+export type SharedTrip = {
+  kind: 'order' | 'job';
+  code: string;
+  status: string;
+  service: string;
+  partner_name: string | null;
+  vehicle: string | null;
+  partner_latitude: number | null;
+  partner_longitude: number | null;
+  partner_seen_at: string | null;
+  area: string | null;
+  scheduled_for: string | null;
+  updated_at: string;
+  finished: boolean;
+};
+
 type PartnerRow = {
   id: string;
   role: PartnerRole;
@@ -249,6 +309,8 @@ type PartnerRow = {
   last_latitude: number | null;
   last_longitude: number | null;
   last_seen_at: string | null;
+  /** From the CNIC: last digit odd = male, even = female. */
+  gender: 'female' | 'male' | null;
   created_at: string;
   updated_at: string;
 };
@@ -308,6 +370,8 @@ export type Database = {
           full_name: string | null;
           email: string | null;
           language: AppLanguage;
+          /** Offer orders and jobs to women partners first when possible. */
+          prefer_female_partner: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -316,6 +380,7 @@ export type Database = {
           full_name?: string | null;
           email?: string | null;
           language?: AppLanguage;
+          prefer_female_partner?: boolean;
         };
         Relationships: [];
       };
@@ -444,6 +509,14 @@ export type Database = {
       };
       chat_messages: {
         Row: ChatMessageRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      safety_alerts: { Row: SafetyAlertRow; Insert: never; Update: never; Relationships: [] };
+      disputes: { Row: DisputeRow; Insert: never; Update: never; Relationships: [] };
+      trip_shares: {
+        Row: { token: string; order_id: string | null; job_id: string | null; created_by: string; created_at: string; expires_at: string; revoked: boolean };
         Insert: never;
         Update: never;
         Relationships: [];
@@ -587,6 +660,21 @@ export type Database = {
       cancel_job: { Args: { p_job: string; p_reason?: string }; Returns: UstaadJobRow };
       send_chat_message: { Args: { p_body: string; p_order?: string; p_job?: string }; Returns: ChatMessageRow };
       mark_chat_read: { Args: { p_order?: string; p_job?: string }; Returns: number };
+      raise_sos: { Args: { p_order?: string; p_job?: string; lat?: number; lng?: number; p_note?: string }; Returns: SafetyAlertRow };
+      resolve_sos: { Args: { p_alert: string; p_note: string }; Returns: SafetyAlertRow };
+      create_trip_share: { Args: { p_order?: string; p_job?: string }; Returns: string };
+      revoke_trip_share: { Args: { p_token: string }; Returns: undefined };
+      shared_trip: { Args: { p_token: string }; Returns: SharedTrip[] };
+      raise_dispute: { Args: { p_reason: DisputeReason; p_details: string; p_order?: string; p_job?: string }; Returns: DisputeRow };
+      update_dispute: {
+        Args: { p_dispute: string; p_status: DisputeStatus; p_resolution?: string; p_adjustment?: number };
+        Returns: DisputeRow;
+      };
+      remove_rating: { Args: { p_reason: string; p_order?: string; p_job?: string }; Returns: undefined };
+      partner_ratings: {
+        Args: Record<string, never>;
+        Returns: { partner_id: string; rating_avg: number; rating_count: number; low: boolean }[];
+      };
     };
     Enums: {
       app_language: AppLanguage;
@@ -603,6 +691,8 @@ export type Database = {
       offer_status: OfferStatus;
       job_status: JobStatus;
       job_timing: JobTiming;
+      dispute_reason: DisputeReason;
+      dispute_status: DisputeStatus;
     };
     CompositeTypes: { [_ in never]: never };
   };
@@ -624,3 +714,5 @@ export type UstaadJob = UstaadJobRow;
 export type JobEvent = Database['public']['Tables']['job_events']['Row'];
 export type JobOffer = JobOfferRow;
 export type ChatMessage = ChatMessageRow;
+export type SafetyAlert = SafetyAlertRow;
+export type Dispute = DisputeRow;

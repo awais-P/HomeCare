@@ -4,6 +4,7 @@ import type { PartnerStatus } from '@homecare/shared/db-types';
 import { formatE164ForDisplay } from '@homecare/shared/phone';
 
 import { DOCUMENT_KINDS, documentUrls, errorText, listPartners, reviewPartner, type DocumentKind, type PartnerWithProfile } from './api';
+import { supabase } from './supabase';
 
 const TRADE_LABEL: Record<string, string> = {
   plumber: 'Plumber',
@@ -28,12 +29,15 @@ export function PartnersView({ statuses, title, onChanged }: { statuses: Partner
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ratings, setRatings] = useState<Record<string, { rating_avg: number; rating_count: number; low: boolean }>>({});
   const statusKey = statuses.join(',');
 
   const load = useCallback(async () => {
     setState('loading');
     try {
-      setRows(await listPartners(statusKey.split(',') as PartnerStatus[]));
+      const [list, summary] = await Promise.all([listPartners(statusKey.split(',') as PartnerStatus[]), supabase.rpc('partner_ratings')]);
+      setRows(list);
+      setRatings(Object.fromEntries((summary.data ?? []).map((r) => [r.partner_id, r])));
       setState('ready');
     } catch (e) {
       setError(errorText(e));
@@ -66,8 +70,11 @@ export function PartnersView({ statuses, title, onChanged }: { statuses: Partner
               <strong>{p.profiles?.full_name ?? 'Unnamed'}</strong>
               <span className="muted small">
                 {p.profiles?.phone ? formatE164ForDisplay(p.profiles.phone) : ''} · {workSummary(p)}
+                {ratings[p.id] ? ` · ★ ${ratings[p.id].rating_avg} (${ratings[p.id].rating_count})` : ''}
+                {p.gender ? ` · ${p.gender}` : ''}
               </span>
             </span>
+            {ratings[p.id]?.low ? <span className="pill order-cancelled">Low rating</span> : null}
             <span className={`pill status-${p.status}`}>{p.status}</span>
           </button>
         ))}

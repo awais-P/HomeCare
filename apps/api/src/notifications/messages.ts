@@ -140,6 +140,33 @@ export function composeMessage(kind: string, params: Params, language: Language 
         from === 'admin' ? (ur ? 'HomeCare سپورٹ' : 'HomeCare support') : from === 'customer' ? (ur ? 'گاہک' : 'Customer') : ur ? 'آپ کا پارٹنر' : 'Your partner';
       return { title: `${who} · ${code}`, body: str(params.preview) };
     }
+    case 'sos_alert':
+      return {
+        title: ur ? '🚨 SOS الرٹ' : '🚨 SOS alert',
+        body: ur
+          ? `ایک ${params.role === 'partner' ? 'پارٹنر' : 'گاہک'} نے مدد مانگی ہے${code ? ` (${code})` : ''}۔ ایڈمن پینل کھولیں۔`
+          : `A ${params.role === 'partner' ? 'partner' : 'customer'} asked for help${code ? ` (${code})` : ''}. Open the admin panel now.`,
+      };
+    case 'dispute_raised':
+      return {
+        title: ur ? `نئی شکایت ${code}` : `New dispute ${code}`,
+        body: ur ? 'ایڈمن پینل میں دیکھیں۔' : 'Review it in the admin panel → Safety.',
+      };
+    case 'dispute_update': {
+      const status = str(params.status);
+      const en: Record<string, string> = {
+        in_review: 'We are looking into your report.',
+        resolved: 'Your report is resolved. Tap to see what we decided.',
+        rejected: 'Your report is closed. Tap to see why.',
+      };
+      const urd: Record<string, string> = {
+        in_review: 'ہم آپ کی رپورٹ دیکھ رہے ہیں۔',
+        resolved: 'آپ کی رپورٹ حل ہو گئی۔ فیصلہ دیکھنے کے لیے ٹیپ کریں۔',
+        rejected: 'آپ کی رپورٹ بند ہو گئی۔ وجہ دیکھنے کے لیے ٹیپ کریں۔',
+      };
+      const body = (ur ? urd : en)[status];
+      return body ? { title: ur ? `رپورٹ ${code}` : `Report ${code}`, body } : null;
+    }
     case 'job_cancelled':
       return {
         title: ur ? `بکنگ ${code}` : `Booking ${code}`,

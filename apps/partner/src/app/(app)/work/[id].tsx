@@ -10,6 +10,7 @@ import { formatSlot, JOB_STATUS_KEY, jobTotal, TRADE_ICON, TRADE_KEY, useJobLive
 import type { UstaadJob } from '@homecare/shared/lib';
 import { getDeviceLocation } from '@homecare/shared/location';
 import { formatRupees } from '@homecare/shared/orders';
+import { SafetyActions } from '@homecare/shared/safety';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
 import { AppText, BackHeader, Badge, Button, Card, Divider, IconCircle, InlineMessage, Screen, TextField } from '@homecare/shared/ui';
 
@@ -173,6 +174,13 @@ export default function WorkScreen() {
         </Card>
 
         <ChatButton thread={{ kind: 'job', id: job.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'job', id: job.id } })} />
+
+        <SafetyActions
+          thread={{ kind: 'job', id: job.id }}
+          active={['accepted', 'on_the_way', 'arrived', 'quoted', 'in_progress'].includes(job.status)}
+          onSos={() => router.push({ pathname: '/sos', params: { kind: 'job', id: job.id } })}
+          onReport={() => router.push({ pathname: '/report/[kind]/[id]', params: { kind: 'job', id: job.id, code: job.code } })}
+        />
 
         {/* Steps */}
         {job.status === 'accepted' ? (

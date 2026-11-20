@@ -9,7 +9,9 @@ export const unstable_settings = { anchor: 'index' };
 export default function PartnerAppLayout() {
   // New offers open the jobs screen; updates about a current order open that order.
   usePushNotifications('partner', (data) =>
-    data.kind === 'chat_message' && (data.job_id || data.order_id)
+    data.kind === 'dispute_update' && (data.job_id || data.order_id)
+      ? { pathname: '/report/[kind]/[id]', params: data.job_id ? { kind: 'job', id: data.job_id } : { kind: 'order', id: data.order_id! } }
+      : data.kind === 'chat_message' && (data.job_id || data.order_id)
       ? { pathname: '/chat/[kind]/[id]', params: data.job_id ? { kind: 'job', id: data.job_id } : { kind: 'order', id: data.order_id! } }
       : data.kind === 'new_offer' || data.kind === 'new_job_offer'
       ? '/'
@@ -31,6 +33,8 @@ export default function PartnerAppLayout() {
         <Stack.Screen name="job/[id]" />
         <Stack.Screen name="work/[id]" />
         <Stack.Screen name="chat/[kind]/[id]" />
+        <Stack.Screen name="sos" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="report/[kind]/[id]" />
       </Stack>
     </PartnerProvider>
   );

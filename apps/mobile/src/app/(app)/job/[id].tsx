@@ -20,6 +20,7 @@ import {
 import type { JobEvent, JobUstaadCard, UstaadJob } from '@homecare/shared/lib';
 import { AppMap } from '@homecare/shared/map';
 import { formatRupees } from '@homecare/shared/orders';
+import { SafetyActions } from '@homecare/shared/safety';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
 import { AppText, BackHeader, Badge, Button, Card, Divider, IconCircle, InlineMessage, Screen } from '@homecare/shared/ui';
 
@@ -271,6 +272,9 @@ export default function JobDetailScreen() {
                 {t('ujob.detail.ustaad')}
               </AppText>
               <AppText variant="bodyStrong">{card.name ?? ''}</AppText>
+              <AppText variant="small" color="success">
+                ✓ {t('safety.verified')}
+              </AppText>
               <AppText variant="small" color="textMuted">
                 {[card.rating_avg != null ? `★ ${card.rating_avg}` : null, card.jobs_done ? t('ujob.detail.jobsDone', { count: card.jobs_done }) : t('ujob.detail.newUstaad')]
                   .filter(Boolean)
@@ -315,6 +319,14 @@ export default function JobDetailScreen() {
             </View>
           </Card>
         ) : null}
+
+        <SafetyActions
+          thread={{ kind: 'job', id: job.id }}
+          active={['accepted', 'on_the_way', 'arrived', 'quoted', 'in_progress'].includes(job.status)}
+          canShare
+          onSos={() => router.push({ pathname: '/sos', params: { kind: 'job', id: job.id } })}
+          onReport={() => router.push({ pathname: '/report/[kind]/[id]', params: { kind: 'job', id: job.id, code: job.code } })}
+        />
 
         {/* The problem */}
         <Card style={styles.block}>

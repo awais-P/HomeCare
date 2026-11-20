@@ -6,14 +6,16 @@ import { Login } from './login';
 import { JobsView } from './jobs-view';
 import { OrdersView } from './orders-view';
 import { PartnersView } from './partners-view';
+import { SafetyView } from './safety-view';
 import { SettingsView } from './settings-view';
 import { isConfigured, supabase } from './supabase';
 
-type View = 'orders' | 'jobs' | 'applications' | 'partners' | 'map' | 'settings';
+type View = 'orders' | 'jobs' | 'safety' | 'applications' | 'partners' | 'map' | 'settings';
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'orders', label: 'Orders' },
   { id: 'jobs', label: 'Ustaad jobs' },
+  { id: 'safety', label: 'Safety' },
   { id: 'applications', label: 'Applications' },
   { id: 'partners', label: 'Partners' },
   { id: 'map', label: 'Live map' },
@@ -100,6 +102,7 @@ export function App() {
         {view === 'map' ? <LiveMap /> : null}
         {view === 'orders' ? <OrdersView /> : null}
         {view === 'jobs' ? <JobsView /> : null}
+        {view === 'safety' ? <SafetyView /> : null}
         {view === 'settings' ? <SettingsView /> : null}
       </main>
     </div>

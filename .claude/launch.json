@@ -41,6 +41,17 @@
         "@homecare/admin"
       ],
       "port": 5173
+    },
+    {
+      "name": "site-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@homecare/site"
+      ],
+      "port": 5174
     }
   ]
 }

@@ -5,6 +5,8 @@ import { createRoot } from 'react-dom/client';
 
 import { LEGAL_DOCS, LEGAL_UPDATED, type LegalDocId } from '@homecare/shared/legal';
 
+import { TrackPage } from './track';
+
 const PAGES: { path: string; doc: LegalDocId }[] = [
   { path: '/terms', doc: 'terms' },
   { path: '/privacy', doc: 'privacy' },
@@ -58,7 +60,9 @@ function Home() {
 }
 
 function App() {
-  const page = PAGES.find((p) => window.location.pathname.replace(/\/$/, '') === p.path);
+  const path = window.location.pathname.replace(/\/$/, '');
+  const page = PAGES.find((p) => path === p.path);
+  const track = /^\/track\/([0-9a-f]{64})$/.exec(path)?.[1];
   return (
     <>
       <header className="top">
@@ -73,7 +77,7 @@ function App() {
           ))}
         </nav>
       </header>
-      <main>{page ? <LegalPage doc={page.doc} /> : <Home />}</main>
+      <main>{track ? <TrackPage token={track} /> : page ? <LegalPage doc={page.doc} /> : <Home />}</main>
     </>
   );
 }

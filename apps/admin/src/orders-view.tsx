@@ -240,7 +240,22 @@ function OrderDetail({ order, onChanged }: { order: OrderRow; onChanged: () => v
           <>
             <dt>Rating</dt>
             <dd>
-              {'★'.repeat(order.rating)} {order.rating_comment ?? ''}
+              {'★'.repeat(order.rating)} {order.rating_comment ?? ''}{' '}
+              <button
+                className="btn ghost small"
+                onClick={() => {
+                  const reason = window.prompt('Why remove this rating? (kept for the record)');
+                  if (reason?.trim()) void act(() => supabase.rpc('remove_rating', { p_reason: reason.trim(), p_order: order.id }));
+                }}>
+                Remove rating
+              </button>
+            </dd>
+          </>
+        ) : order.removed_rating ? (
+          <>
+            <dt>Rating</dt>
+            <dd className="muted">
+              Removed ({order.removed_rating}★): {order.rating_removed_reason}
             </dd>
           </>
         ) : null}

@@ -21,6 +21,7 @@ import {
   SUBSTITUTION_STATUS_KEY,
   useOrderLive,
 } from '@homecare/shared/orders';
+import { SafetyActions } from '@homecare/shared/safety';
 import { radius, spacing, useColors } from '@homecare/shared/theme';
 import { AppText, BackHeader, Badge, Button, Card, Divider, IconCircle, InlineMessage, Screen } from '@homecare/shared/ui';
 
@@ -333,6 +334,9 @@ export default function OrderDetailScreen() {
                 {t('order.detail.rider')}
               </AppText>
               <AppText variant="bodyStrong">{contact.name ?? ''}</AppText>
+              <AppText variant="small" color="success">
+                ✓ {t('safety.verified')}
+              </AppText>
             </View>
             <Button label={t('order.detail.call')} icon="call" size="md" fullWidth={false} onPress={() => void Linking.openURL(`tel:${contact.phone}`)} />
           </Card>
@@ -341,6 +345,14 @@ export default function OrderDetailScreen() {
         {order.rider_id ? (
           <ChatButton thread={{ kind: 'order', id: order.id }} onPress={() => router.push({ pathname: '/chat/[kind]/[id]', params: { kind: 'order', id: order.id } })} />
         ) : null}
+
+        <SafetyActions
+          thread={{ kind: 'order', id: order.id }}
+          active={['accepted', 'at_shop', 'on_the_way'].includes(order.status)}
+          canShare
+          onSos={() => router.push({ pathname: '/sos', params: { kind: 'order', id: order.id } })}
+          onReport={() => router.push({ pathname: '/report/[kind]/[id]', params: { kind: 'order', id: order.id, code: order.code } })}
+        />
 
         {/* The list */}
         <Card style={styles.block}>

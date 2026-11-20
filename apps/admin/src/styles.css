@@ -128,3 +128,6 @@ h3 { margin: 8px 0 0; font-size: 16px; }
 code { background: var(--surface-alt); padding: 1px 5px; border-radius: 4px; }
 
 .doc-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.sos-open { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger-soft); }
+.row-actions { display: flex; gap: 8px; }

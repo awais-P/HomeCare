@@ -49,6 +49,14 @@ describe('composeMessage', () => {
     expect(composeMessage('chat_message', { code: 'UJ-ABC123', from: 'admin', preview: 'Hi' })?.title).toBe('HomeCare support · UJ-ABC123');
   });
 
+  it('writes safety alerts and dispute updates', () => {
+    expect(composeMessage('sos_alert', { role: 'customer', code: 'HC-ABC123' })?.body).toBe(
+      'A customer asked for help (HC-ABC123). Open the admin panel now.',
+    );
+    expect(composeMessage('dispute_update', { code: 'DS-ABC123', status: 'resolved' })?.title).toBe('Report DS-ABC123');
+    expect(composeMessage('dispute_update', { status: 'open' })).toBeNull();
+  });
+
   it('ignores unknown kinds and statuses', () => {
     expect(composeMessage('something_else', {})).toBeNull();
     expect(composeMessage('order_status', { status: 'requested' })).toBeNull();
