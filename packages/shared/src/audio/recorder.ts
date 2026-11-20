@@ -22,7 +22,8 @@ export type VoiceRecorder = {
   uri: string | null;
   denied: boolean;
   start: () => Promise<void>;
-  stop: () => Promise<void>;
+  /** Stops and returns the finished note (also available as `uri` on the next render). */
+  stop: () => Promise<string | null>;
   discard: () => void;
 };
 
@@ -54,6 +55,7 @@ export function useVoiceRecorder(): VoiceRecorder {
     await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
     setFinishedMs(length);
     setUri(recorder.uri);
+    return recorder.uri;
   }, [recorder]);
 
   const discard = useCallback(() => {

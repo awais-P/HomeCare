@@ -105,5 +105,6 @@ npm run api
 | `npm run api:build` | Compile the API                      |
 | `npm run api:test`  | Run API unit tests                   |
 | `npm run db:test`   | Test migrations + RLS on a local Postgres |
+| `npm run assistant:test` | Test the voice assistant logic (no AI calls) |
 | `npm run typecheck` | Type-check every app and package     |
 | `npm run lint`      | Lint all workspaces                  |

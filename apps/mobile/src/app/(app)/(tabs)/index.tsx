@@ -119,6 +119,24 @@ export default function HomeScreen() {
           </Pressable>
         }>
         <Pressable
+          onPress={() => router.push('/assistant')}
+          accessibilityRole="button"
+          accessibilityLabel={t('assistant.ask', { name: profile?.assistant_name ?? 'Jack' })}
+          style={({ pressed }) => [styles.assistant, { flexDirection: row, backgroundColor: pressed ? colors.primaryPressed : colors.primary }]}>
+          <View style={[styles.assistantMic, { backgroundColor: colors.onPrimary }]}>
+            <Ionicons name="mic" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.flex}>
+            <AppText variant="bodyStrong" color="onPrimary">
+              {t('assistant.ask', { name: profile?.assistant_name ?? 'Jack' })}
+            </AppText>
+            <AppText variant="small" color="onPrimary" numberOfLines={1}>
+              {t('assistant.askHint')}
+            </AppText>
+          </View>
+        </Pressable>
+
+        <Pressable
           onPress={() => router.push('/order/new')}
           accessibilityRole="search"
           style={[styles.search, { flexDirection: row, backgroundColor: colors.surfaceAlt }]}>
@@ -233,6 +251,8 @@ const styles = StyleSheet.create({
   },
   addressRow: { alignItems: 'center', gap: spacing.md, minHeight: 48 },
   search: { alignItems: 'center', gap: spacing.sm, minHeight: 52, paddingHorizontal: spacing.lg, borderRadius: radius.md },
+  assistant: { alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.lg },
+  assistantMic: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   grid: { gap: spacing.sm },
   gridRow: { gap: spacing.sm },
   place: { alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm + 2, borderRadius: radius.sm },

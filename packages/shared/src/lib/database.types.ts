@@ -372,6 +372,8 @@ export type Database = {
           language: AppLanguage;
           /** Offer orders and jobs to women partners first when possible. */
           prefer_female_partner: boolean;
+          /** The name the customer gave their voice assistant, e.g. Jack. */
+          assistant_name: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -381,6 +383,7 @@ export type Database = {
           email?: string | null;
           language?: AppLanguage;
           prefer_female_partner?: boolean;
+          assistant_name?: string | null;
         };
         Relationships: [];
       };
@@ -671,6 +674,7 @@ export type Database = {
         Returns: DisputeRow;
       };
       remove_rating: { Args: { p_reason: string; p_order?: string; p_job?: string }; Returns: undefined };
+      assistant_take_quota: { Args: Record<string, never>; Returns: number };
       partner_ratings: {
         Args: Record<string, never>;
         Returns: { partner_id: string; rating_avg: number; rating_count: number; low: boolean }[];

@@ -31,6 +31,7 @@ export default function AppLayout() {
         <Stack.Screen name="job/[id]" />
         <Stack.Screen name="chat/[kind]/[id]" />
         <Stack.Screen name="sos" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="assistant" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="report/[kind]/[id]" />
         <Stack.Screen name="addresses" />
         <Stack.Screen name="address/pick" options={{ animation: 'slide_from_bottom' }} />

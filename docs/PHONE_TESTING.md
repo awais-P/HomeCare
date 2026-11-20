@@ -28,7 +28,7 @@ Two apps, two APKs; both can be installed on the same phone:
   (they are baked into the APK when it is built; change them → rebuild).
 - Optional, for push notifications: `google-services.json` in both app folders
   (`docs/PUSH_NOTIFICATIONS.md`).
-- Supabase: run `SETUP_01` … `SETUP_08` (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
+- Supabase: run `SETUP_01` … `SETUP_09`; for the voice assistant also deploy its function (`docs/VOICE_ASSISTANT.md`) (`docs/SUPABASE_SETUP.md`), add test phone numbers, make
   yourself an admin.
 
 ## Build and install

@@ -6,12 +6,12 @@ import { join } from 'node:path';
 // Checks the database setup on an in-memory Postgres (PGlite + PostGIS) with a minimal stand-in
 // for Supabase's auth schema. Two scenarios:
 //   A. every file in supabase/migrations, in order (what the Supabase CLI would apply)
-//   B. the dashboard scripts SETUP_01..08, each run TWICE, with a user who signed up
+//   B. the dashboard scripts SETUP_01..09, each run TWICE, with a user who signed up
 //      beforehand (what a teammate pastes into the SQL Editor)
 // Run: npm run db:test
 const supabaseDir = join(import.meta.dirname, '..');
 const migrationsDir = join(supabaseDir, 'migrations');
-const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql', 'SETUP_07_CHAT.sql', 'SETUP_08_SAFETY.sql'].map((f) =>
+const editorScripts = ['SETUP_01_PROFILES.sql', 'SETUP_02_ADDRESSES_AND_ZONES.sql', 'SETUP_03_PARTNERS.sql', 'SETUP_04_ORDERS_AND_ACCOUNT.sql', 'SETUP_05_SAUDA_LIVE.sql', 'SETUP_06_USTAAD.sql', 'SETUP_07_CHAT.sql', 'SETUP_08_SAFETY.sql', 'SETUP_09_ASSISTANT.sql'].map((f) =>
   readFileSync(join(supabaseDir, f), 'utf8'),
 );
 
@@ -1190,6 +1190,33 @@ async function checkSafety(db) {
   await db.exec(`update partners set is_online = false`);
 }
 
+// ----------------------------------------------------------------------- Voice assistant
+async function checkAssistant(db) {
+  const { expectErr, asUser, newUser } = helpers(db);
+  const user = await newUser('923080000001');
+  const other = await newUser('923080000002');
+  await db.exec(`update app_settings set value = '3' where key = 'assistant_daily_limit'`);
+  await asUser(user, async () => {
+    ok((await db.query(`update profiles set assistant_name = 'Jack' where id = $1`, [user])).affectedRows === 1, 'customer names their assistant');
+    await expectErr(`update profiles set assistant_name = 'J' where id = $1`, 'a one-letter name is refused', [user]);
+    await expectErr(`update profiles set assistant_name = $2 where id = $1`, 'a name over 20 letters is refused', [user, 'Abcdefghijklmnopqrstuv']);
+    const left = [];
+    for (let i = 0; i < 3; i++) left.push((await db.query(`select assistant_take_quota() n`)).rows[0].n);
+    ok(left.join(',') === '2,1,0', 'each request uses one of the day\'s requests');
+    const over = await expectErr(`select assistant_take_quota()`, 'the 4th request of the day is refused');
+    ok(over?.includes('assistant_limit'), 'error is assistant_limit');
+    await expectErr(`select * from assistant_usage`, 'apps cannot read or reset the usage counts');
+  });
+  await asUser(other, async () => {
+    ok((await db.query(`select assistant_take_quota() n`)).rows[0].n === 2, "one person's limit doesn't affect another");
+    ok((await db.query(`update profiles set assistant_name = 'Hacked' where id = $1`, [user])).affectedRows === 0, "others cannot rename someone's assistant");
+  });
+  await db.exec(`set role anon;`);
+  await expectErr(`select assistant_take_quota()`, 'anon cannot use the assistant');
+  await db.exec(`reset role;`);
+  await db.exec(`update app_settings set value = '40' where key = 'assistant_daily_limit'`);
+}
+
 // --- A. migrations -----------------------------------------------------------------------
 console.log('\n== A. supabase/migrations');
 {
@@ -1205,10 +1232,11 @@ console.log('\n== A. supabase/migrations');
   await checkUstaad(db);
   await checkChat(db);
   await checkSafety(db);
+  await checkAssistant(db);
 }
 
 // --- B. SQL editor scripts, each run twice ------------------------------------------------
-console.log('\n== B. SETUP_01..08 (each run twice, with an earlier signup)');
+console.log('\n== B. SETUP_01..09 (each run twice, with an earlier signup)');
 {
   const db = await freshDb();
   const early = (await db.query(`insert into auth.users (phone) values ('923450000000') returning id`)).rows[0].id;
@@ -1231,6 +1259,7 @@ console.log('\n== B. SETUP_01..08 (each run twice, with an earlier signup)');
   await checkUstaad(db);
   await checkChat(db);
   await checkSafety(db);
+  await checkAssistant(db);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

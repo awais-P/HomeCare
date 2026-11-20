@@ -55,6 +55,13 @@ export default function AccountScreen() {
           <Divider inset={spacing.lg} />
           <ListItem icon="location-outline" title={t('account.addresses')} onPress={() => router.push('/addresses')} />
           <Divider inset={spacing.lg} />
+          <ListItem
+            icon="mic-outline"
+            title={t('assistant.accountItem')}
+            value={profile?.assistant_name ?? undefined}
+            onPress={() => router.push({ pathname: '/assistant', params: { rename: '1' } })}
+          />
+          <Divider inset={spacing.lg} />
           <ListItem icon="help-circle-outline" title={t('account.help')} value={t('common.comingSoon')} disabled />
         </View>
 

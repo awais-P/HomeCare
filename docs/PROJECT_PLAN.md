@@ -218,6 +218,21 @@ Still to do:
 
 **Done when:** a test dispute is raised and resolved in admin, and a suspended partner can no longer go online.
 
+### Voice assistant (added module) 🚧
+**Goal:** customers name their assistant (e.g. "Jack") and place orders and bookings by voice, in Urdu, English or a mix.
+
+Built (`SETUP_09` + Edge Function `assistant`, tested):
+- [x] Name your assistant (first use, changeable in Account)
+- [x] Tap-to-talk or type; Groq Whisper speech-to-text; Groq gpt-oss-120b turns it into an order/booking (strict JSON); every field checked against the customer's own data
+- [x] Spoken replies (Urdu/English), follow-up questions, "where is my order?"
+- [x] Confirmation card: nothing is placed until the customer taps; then the normal flow (offers, tracking, chat)
+- [x] Daily limit per person (setting), free-plan only (Groq + Supabase), key kept server-side
+
+Still to do:
+- [ ] Deploy the function and add the Groq key (`docs/VOICE_ASSISTANT.md`); test Urdu speech on real phones
+- [ ] Hands-free "Hey Jack" while the app is open
+- [ ] Mention the assistant (Groq) in the Privacy Policy
+
 ### P8 Pilot launch & pilot ⬜ (4 weeks: 1 week prep, 3 weeks pilot)
 - [ ] 20–30 verified ustaads and 15–20 riders onboarded in pilot sectors **before** customers are invited
 - [ ] Real SMS provider (Twilio or a Pakistani gateway via Send SMS Hook); remove test numbers

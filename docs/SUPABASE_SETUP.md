@@ -16,6 +16,7 @@ Run these files **in order**, each in its own new query. Each is safe to run aga
 | 6 | [`supabase/SETUP_06_USTAAD.sql`](../supabase/SETUP_06_USTAAD.sql) | Ustaad bookings: jobs, offers to ustaads, quotes, warranty revisits, favourites (P5) | `settings_ok`, `jobs_ok`, `offers_ok`, `favourites_ok`, `media_ok`, `actions_ok` |
 | 7 | [`supabase/SETUP_07_CHAT.sql`](../supabase/SETUP_07_CHAT.sql) | In-app chat per order and booking (P6) | `chat_ok`, `rules_ok`, `actions_ok` |
 | 8 | [`supabase/SETUP_08_SAFETY.sql`](../supabase/SETUP_08_SAFETY.sql) | SOS alerts, share-trip links, women-first preference, disputes, rating moderation (P7) | `columns_ok`, `sos_ok`, `sharing_ok`, `disputes_ok`, `moderation_ok`, `actions_ok` |
+| 9 | [`supabase/SETUP_09_ASSISTANT.sql`](../supabase/SETUP_09_ASSISTANT.sql) | Voice assistant: assistant name and a daily limit per person (then deploy the function: `docs/VOICE_ASSISTANT.md`) | `name_ok`, `limit_ok`, `quota_ok` |
 
 Scripts build on each other. If you ever run an older one again, run the later ones again after it
 (for example `SETUP_08` updates two functions from `SETUP_05` and `SETUP_06`).

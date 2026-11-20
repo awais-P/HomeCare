@@ -23,7 +23,8 @@
     "site": "npm run dev -w @homecare/site",
     "site:build": "npm run build -w @homecare/site",
     "apk": "npm run android:release -w @homecare/mobile",
-    "partner:apk": "npm run android:release -w @homecare/partner"
+    "partner:apk": "npm run android:release -w @homecare/partner",
+    "assistant:test": "node --no-warnings --test supabase/functions/assistant/logic.test.ts"
   },
   "engines": {
     "node": ">=22"
